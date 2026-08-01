@@ -10,8 +10,11 @@ ROLE_NAME="${ROLE_NAME:-track-aws-github-deploy}"
 AWS_REGION="${AWS_REGION:-eu-central-1}"
 OIDC_URL="https://token.actions.githubusercontent.com"
 OIDC_AUDIENCE="sts.amazonaws.com"
-# Thumbprint oficial de GitHub Actions (válido desde 2023+)
-GITHUB_OIDC_THUMBPRINT="${GITHUB_OIDC_THUMBPRINT:-6938fd4d98bab03faadb97b34396831e3780aea1}"
+# Thumbprints oficiales de GitHub Actions (AWS acepta lista)
+GITHUB_OIDC_THUMBPRINTS=(
+  "${GITHUB_OIDC_THUMBPRINT:-6938fd4d98bab03faadb97b34396831e3780aea1}"
+  "1c58a3a8518e8759bf075b76b750d4c4df28b48a"
+)
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,7 +53,7 @@ else
   aws iam create-open-id-connect-provider \
     --url "${OIDC_URL}" \
     --client-id-list "${OIDC_AUDIENCE}" \
-    --thumbprint-list "${GITHUB_OIDC_THUMBPRINT}" \
+    --thumbprint-list "${GITHUB_OIDC_THUMBPRINTS[@]}" \
     --tags Key=Project,Value=track-aws Key=ManagedBy,Value=setup-github-oidc
   echo "==> OIDC provider creado."
 fi
@@ -66,7 +69,10 @@ cat > "${TRUST_FILE}" <<EOF
       "Principal": {
         "Federated": "${OIDC_ARN}"
       },
-      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Action": [
+        "sts:AssumeRoleWithWebIdentity",
+        "sts:TagSession"
+      ],
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "${OIDC_AUDIENCE}"

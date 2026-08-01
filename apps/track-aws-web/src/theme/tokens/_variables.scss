@@ -1,0 +1,31 @@
+:root {
+  --ta-font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --ta-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --ta-bg: #0b1220;
+  --ta-bg-elevated: #121a2b;
+  --ta-bg-panel: #182338;
+  --ta-border: #243049;
+  --ta-text: #e8eef9;
+  --ta-text-muted: #9aa8c3;
+  --ta-accent: #3dd6c6;
+  --ta-accent-2: #5b8def;
+  --ta-danger: #f07178;
+  --ta-warning: #e6b450;
+  --ta-success: #7fd99a;
+
+  --ta-radius: 10px;
+  --ta-space-1: 0.25rem;
+  --ta-space-2: 0.5rem;
+  --ta-space-3: 0.75rem;
+  --ta-space-4: 1rem;
+  --ta-space-5: 1.5rem;
+  --ta-space-6: 2rem;
+
+  --ion-color-primary: #3dd6c6;
+  --ion-color-primary-contrast: #0b1220;
+  --ion-background-color: var(--ta-bg);
+  --ion-text-color: var(--ta-text);
+  --ion-toolbar-background: var(--ta-bg-elevated);
+  --ion-item-background: transparent;
+}

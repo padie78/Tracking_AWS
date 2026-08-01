@@ -1,0 +1,21 @@
+name: Setup Node monorepo
+description: Instala Node 20, restaura la caché de npm y ejecuta `npm ci` en la raíz del monorepo.
+
+inputs:
+  node-version:
+    description: Versión de Node a instalar.
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci --no-audit --no-fund --prefer-offline

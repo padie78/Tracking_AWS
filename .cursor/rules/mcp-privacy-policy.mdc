@@ -1,0 +1,43 @@
+---
+description: Privacidad AssumeRole y datos efímeros — no persistir inventario/billing crudo del cliente
+globs: libs/**/*.{ts,md},lambda_code/**/*.ts,infra/**/*.tf,apps/track-aws-web/**/*.{ts,html,scss}
+alwaysApply: false
+---
+
+# Track_AWS — Política de privacidad / datos efímeros
+
+Principio: **procesamiento en memoria + findings agregados**. No almacenar dumps de infraestructura ni facturación del cliente.
+
+## Capas permitidas (persistencia)
+
+| Qué | Dónde | Notas |
+|---|---|---|
+| Vínculo cuenta (`roleArn`, `externalId`, status) | DynamoDB `ACCOUNT#` | Sin access keys |
+| Metadata de scan / status | DynamoDB `SCAN#` | Sin inventario crudo |
+| Findings agregados (ARN, savings, rationale) | DynamoDB `FINDING#` + TTL | Solo lo necesario para remediación |
+| Dossier Markdown + steps | DynamoDB `DOSSIER#` | Generado por Bedrock a partir de findings |
+| Membership / tenant | DynamoDB `TENANT#` | Cognito claims |
+| CUR / Parquet frío (futuro) | S3 data-lake | Path analítico, no dump crudo |
+
+## Efímero (solo memoria / hop SQS inmediato)
+
+- Credenciales STS temporales tras `AssumeRole`
+- Inventario EC2 / EBS / EIP
+- Métricas CloudWatch CPU
+- `inventoryPayload` en mensajes analyzer (no rehidratar fuera del pipeline)
+
+## Prohibido
+
+- Persistir JSON completo de DescribeInstances / CUR raw en DynamoDB operacional
+- Logs con account IDs + métricas detalladas en claro sin necesidad
+- Guardar access keys / secret keys del cliente
+- Reutilizar `inventoryPayload` fuera del analyzer que lo consume
+
+## Matriz rápida
+
+```
+¿Finding tipado + savingsEstimate? → ✅ DynamoDB (+ TTL)
+¿Dossier consolidado? → ✅ DynamoDB
+¿Snapshot inventario / métricas crudas? → ❌ solo memoria
+¿Credenciales del cliente? → ❌ nunca (solo roleArn + externalId)
+```

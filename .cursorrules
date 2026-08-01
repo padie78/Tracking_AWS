@@ -1,0 +1,74 @@
+# Cursor Rules — Autonomous Cloud Audit SaaS (Track_AWS)
+
+You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecOps, Well-Architected, and Angular. Production-ready, type-safe, least-privilege code only.
+
+---
+
+## MANDATORY CORE RULES
+
+1. **Stack:** Angular 17+ (Standalone only, NO `NgModule`) + Ionic (`@ionic/angular/standalone`) + TypeScript Signals.
+2. **Infra:** Terraform modular. Compute = Lambda + **ECS Fargate (Prowler)**. Orchestration = Step Functions `Parallel`. API = AppSync. Auth = Cognito. DB = DynamoDB single-table.
+3. **Pattern:** Event-driven + hexagonal (Nx: `domain` / `application` / `infrastructure` / `common`).
+4. **Types:** Strict TypeScript — **NO `any`**. Interfaces for `Tenant`, `AuditPayload`, `ProwlerFinding`, `FinOpsFinding`.
+5. **IaC vs code:** Terraform modules ≠ Lambda business logic.
+6. **Realtime:** AppSync GraphQL Mutations/Subscriptions.
+7. **Privacy:** Inventario/credenciales efímeros (AssumeRole STS en memoria). Persistir solo findings agregados, scores, reportes metadata — nunca dumps crudos ni access keys.
+
+---
+
+## MULTITENANT (ABSOLUTO)
+
+- Extraer `tenant_id` **solo** del JWT Cognito: `custom:tenant_id` / `$ctx.identity.claims`.
+- **Prohibido** aceptar `tenantId` mutable del cliente en GraphQL args o body HTTP de usuario.
+- Particionar DynamoDB: `PK = TENANT#<tenant_id>`.
+
+---
+
+## MATRIZ DE COMPONENTES
+
+| Componente | Servicio | Notas |
+|---|---|---|
+| Auth | Cognito (+ API GW solo ingestion M2M) | Claims `tenant_id`, `user_role` |
+| Dashboard API | AppSync | Queries + subscriptions |
+| Orquestador | Step Functions | AssumeRole → Parallel CloudQuery∥Prowler → aggregate |
+| Inventario / FinOps | CloudQuery-style engine en **Lambda** | Relacional/efímero → FinOps findings |
+| Seguridad | **Prowler en ECS Fargate** | CIS/WAF → S3 → load_prowler_results |
+| Persistencia | DynamoDB STD | `AUDIT#` / `FINDING#` / `ALERT#` |
+| Alertas cliente | EventBridge + SNS + webhooks | Seguridad, tips de ahorro, inconsistencias |
+| Reportes | Lambda + S3 | PDF / executive summary por tenant |
+| Frontend | Angular + S3/CloudFront | |
+
+---
+
+## STEP FUNCTIONS
+
+- Estado `Parallel` con **Retry** + **Catch por rama** (fallback findings vacíos).
+- CloudQuery Lambda: timeout **900s**, memoria **≥2048MB**.
+- Prowler: `ecs:runTask.sync` Fargate (timeout 900s).
+
+---
+
+## PORTALES ANGULAR
+
+`[Cuenta AWS] × [Rol: finops_admin | analyst | viewer] × [Vista]`
+
+| Vista admin/analyst | Propósito |
+|---|---|
+| Dashboard | Score WAF + ahorro USD + último audit |
+| FinOps | Rightsizing / modernización / huérfanos |
+| SecOps | Findings Prowler (CIS/compliance) |
+| Arquitectura | Pilares Well-Architected |
+| Reportes | PDF / executive summaries |
+| Settings | Conectar cuenta + canales de alerta |
+
+Tono: admin gobernanza; analyst cuantitativo; viewer ejecutivo.
+
+---
+
+## GUARDRAILS
+
+- Step Functions + Lambda: errores → retries/Catch parcial; SQS con `ReportBatchItemFailures` donde aplique.
+- Cold path CUR → S3 Parquet → Glue/Athena.
+- DI: `composition-root.ts` por Lambda.
+- Zod en frontera de use cases.
+- Reportes SPA: Markdown limpio, sin saludos; glosario AWS fiel a datos.

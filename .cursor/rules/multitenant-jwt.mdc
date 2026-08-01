@@ -1,0 +1,13 @@
+---
+description: Multitenant — tenant_id solo desde JWT Cognito
+globs: lambda_code/api/**/*.ts,apps/track-aws-web/**/*.ts,infra/modules/api/schema.graphql
+alwaysApply: true
+---
+
+# Multitenant isolation
+
+- Extraer `tenant_id` **únicamente** de `custom:tenant_id` en el JWT Cognito.
+- **Prohibido** aceptar `tenantId` en GraphQL args / body de usuario.
+- Particionar DynamoDB con `PK = TENANT#<tenant_id>`.
+- Compute: Lambdas + **Prowler en ECS Fargate**. Orquestación: Step Functions Parallel.
+- Alertas cliente: EventBridge digest (seguridad / ahorro / inconsistencias) → SNS + webhooks.

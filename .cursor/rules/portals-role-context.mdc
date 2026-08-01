@@ -1,0 +1,57 @@
+---
+description: Matriz de portales Angular por cuenta AWS × rol FinOps y reglas de dossiers IA
+alwaysApply: true
+---
+
+# Portales dinámicos (cuenta × rol)
+
+Un único dominio: UI, gráficos, sub-dashboards y navegación cambian por:
+
+`[Cuenta AWS activa] × [Rol autenticado: finops_admin | analyst | viewer] × [Vista activa]`
+
+- Estado reactivo con Signals (`signal` / `computed` / `effect`).
+- No duplicar menús en paralelo; inyectar cuenta AWS en contenedores por rol con `@if` / `@else`.
+- Multi-tenancy: `custom:tenant_id` → partición DynamoDB `TENANT#<id>`.
+
+## Rol: FinOps Admin (Conexión y Gobernanza)
+
+| Vista | Propósito |
+|---|---|
+| Inicio / Dashboard | Resumen de ahorro potencial y estado del último scan |
+| EC2 Right-sizing | Instancias sobredimensionadas (CPU/RAM) |
+| Modernización | Migraciones t2→t3 / Graviton |
+| Recursos Huérfanos | EBS no adjuntos y Elastic IPs inactivas |
+| Dossier de Ahorro | Guía IA de remediación paso a paso |
+| Settings | Vínculo MCP / cuentas AWS del tenant |
+
+Tono producto/IA: corporativo, técnico, accionable (gobernanza FinOps).
+
+## Rol: Analyst (Análisis y Remediación)
+
+| Vista | Propósito |
+|---|---|
+| Inicio / Dashboard | Ahorro potencial y findings abiertos |
+| EC2 Right-sizing | Priorización de instancias sobredimensionadas |
+| Modernización | Recomendaciones de familia/arquitectura |
+| Recursos Huérfanos | Inventario de waste operativo |
+| Dossier de Ahorro | Consolidación y guía de remediación |
+
+Tono producto/IA: frío, cuantitativo, predictivo (priorización de ahorro).
+
+## Rol: Viewer (Solo Lectura)
+
+| Vista | Propósito |
+|---|---|
+| Inicio / Dashboard | Resumen ejecutivo de ahorro |
+| Dossier de Ahorro | Lectura del último dossier generado |
+
+Tono producto/IA: ejecutivo, conciso, sin jerga operativa innecesaria.
+
+## Dossiers IA en el contenedor SPA
+
+Cuando el output es un análisis/dossier para renderizar en la SPA:
+
+1. Fidelidad a la vista activa (finding puntual vs dossier consolidado).
+2. Tono según rol (admin / analyst / viewer).
+3. Glosario nativo AWS (EC2, EBS, EIP, instance families, CloudWatch); no inventar servicios/regiones/tipos.
+4. Solo Markdown limpio; sin saludos ni cierres. Empezar en el primer encabezado.

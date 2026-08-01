@@ -1,0 +1,208 @@
+import { PutCommand, QueryCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  AuditJob,
+  AuditFinding,
+  type AuditStatus,
+  type FindingDomain,
+  type AuditSeverity,
+  type WafPillarScores,
+} from '@track-aws/domain';
+import type {
+  IAuditJobReader,
+  IAuditJobWriter,
+  IAuditFindingReader,
+  IAuditFindingWriter,
+} from '@track-aws/application';
+import { DynamoKeys, EntityType } from '@track-aws/common';
+import { getDocumentClient } from '../aws/dynamodb-client.factory';
+
+function tableName(): string {
+  const name = process.env['CORE_TABLE_NAME'];
+  if (!name) throw new Error('Missing env CORE_TABLE_NAME');
+  return name;
+}
+
+export class DynamoDbAuditJobRepository
+  implements IAuditJobWriter, IAuditJobReader
+{
+  private readonly doc = getDocumentClient();
+
+  async save(audit: AuditJob): Promise<void> {
+    await this.doc.send(
+      new PutCommand({
+        TableName: tableName(),
+        Item: {
+          PK: DynamoKeys.tenantPk(audit.tenantId),
+          SK: DynamoKeys.auditSk(audit.auditId),
+          entityType: EntityType.AuditJob,
+          tenantId: audit.tenantId,
+          auditId: audit.auditId,
+          accountId: audit.accountId,
+          correlationId: audit.correlationId,
+          status: audit.status,
+          executionArn: audit.executionArn,
+          createdAtIso: audit.createdAtIso,
+          completedAtIso: audit.completedAtIso,
+          findingCount: audit.findingCount,
+          criticalCount: audit.criticalCount,
+          highCount: audit.highCount,
+          estimatedMonthlySavingsUsd: audit.estimatedMonthlySavingsUsd,
+          globalScore: audit.globalScore,
+          pillarScores: audit.pillarScores,
+          errorMessage: audit.errorMessage,
+        },
+      }),
+    );
+  }
+
+  async findById(tenantId: string, auditId: string): Promise<AuditJob | null> {
+    const result = await this.doc.send(
+      new GetCommand({
+        TableName: tableName(),
+        Key: {
+          PK: DynamoKeys.tenantPk(tenantId),
+          SK: DynamoKeys.auditSk(auditId),
+        },
+      }),
+    );
+    if (!result.Item) return null;
+    return toAudit(result.Item as Record<string, unknown>);
+  }
+
+  async listByTenant(tenantId: string, limit = 20): Promise<AuditJob[]> {
+    const result = await this.doc.send(
+      new QueryCommand({
+        TableName: tableName(),
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+        ExpressionAttributeValues: {
+          ':pk': DynamoKeys.tenantPk(tenantId),
+          ':skPrefix': DynamoKeys.auditSkPrefix(),
+        },
+        ScanIndexForward: false,
+        Limit: limit,
+      }),
+    );
+    return (result.Items ?? []).map((item) =>
+      toAudit(item as Record<string, unknown>),
+    );
+  }
+}
+
+function toAudit(item: Record<string, unknown>): AuditJob {
+  return AuditJob.reconstitute({
+    tenantId: String(item['tenantId']),
+    auditId: String(item['auditId']),
+    accountId: String(item['accountId']),
+    correlationId: String(item['correlationId']),
+    status: item['status'] as AuditStatus,
+    executionArn: (item['executionArn'] as string | null) ?? null,
+    createdAtIso: String(item['createdAtIso']),
+    completedAtIso: (item['completedAtIso'] as string | null) ?? null,
+    findingCount: Number(item['findingCount'] ?? 0),
+    criticalCount: Number(item['criticalCount'] ?? 0),
+    highCount: Number(item['highCount'] ?? 0),
+    estimatedMonthlySavingsUsd: Number(item['estimatedMonthlySavingsUsd'] ?? 0),
+    globalScore: Number(item['globalScore'] ?? 0),
+    pillarScores: (item['pillarScores'] as WafPillarScores) ?? {
+      operationalExcellence: 0,
+      security: 0,
+      reliability: 0,
+      performanceEfficiency: 0,
+      costOptimization: 0,
+      sustainability: 0,
+    },
+    errorMessage: (item['errorMessage'] as string | null) ?? null,
+  });
+}
+
+export class DynamoDbAuditFindingRepository
+  implements IAuditFindingWriter, IAuditFindingReader
+{
+  private readonly doc = getDocumentClient();
+
+  async saveMany(findings: AuditFinding[]): Promise<void> {
+    if (!findings.length) return;
+    const chunks: AuditFinding[][] = [];
+    for (let i = 0; i < findings.length; i += 25) {
+      chunks.push(findings.slice(i, i + 25));
+    }
+    for (const chunk of chunks) {
+      await this.doc.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [tableName()]: chunk.map((f) => ({
+              PutRequest: {
+                Item: {
+                  PK: DynamoKeys.auditFindingsPk(f.tenantId, f.auditId),
+                  SK: DynamoKeys.findingSk(f.domain, f.findingId),
+                  entityType: EntityType.AuditFinding,
+                  tenantId: f.tenantId,
+                  auditId: f.auditId,
+                  findingId: f.findingId,
+                  domain: f.domain,
+                  category: f.category,
+                  severity: f.severity,
+                  resourceArn: f.resourceArn,
+                  resourceId: f.resourceId,
+                  region: f.region,
+                  title: f.title,
+                  rationale: f.rationale,
+                  recommendedAction: f.recommendedAction,
+                  estimatedMonthlySavingsUsd: f.estimatedMonthlySavingsUsd,
+                  checkId: f.checkId,
+                  createdAtIso: f.createdAtIso,
+                  GSI1PK: DynamoKeys.categoryGsi1Pk(
+                    f.tenantId,
+                    f.domain === 'finops'
+                      ? 'finops'
+                      : f.domain === 'secops'
+                        ? 'secops'
+                        : 'architecture',
+                  ),
+                  GSI1SK: DynamoKeys.categoryGsi1Sk(f.createdAtIso, f.findingId),
+                },
+              },
+            })),
+          },
+        }),
+      );
+    }
+  }
+
+  async listByAudit(
+    tenantId: string,
+    auditId: string,
+  ): Promise<AuditFinding[]> {
+    const result = await this.doc.send(
+      new QueryCommand({
+        TableName: tableName(),
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+        ExpressionAttributeValues: {
+          ':pk': DynamoKeys.auditFindingsPk(tenantId, auditId),
+          ':skPrefix': DynamoKeys.findingSkPrefix(),
+        },
+      }),
+    );
+    return (result.Items ?? []).map((item) =>
+      AuditFinding.reconstitute({
+        tenantId: String(item['tenantId']),
+        auditId: String(item['auditId']),
+        findingId: String(item['findingId']),
+        domain: item['domain'] as FindingDomain,
+        category: String(item['category']),
+        severity: item['severity'] as AuditSeverity,
+        resourceArn: String(item['resourceArn']),
+        resourceId: String(item['resourceId']),
+        region: String(item['region']),
+        title: String(item['title']),
+        rationale: String(item['rationale']),
+        recommendedAction: String(item['recommendedAction']),
+        estimatedMonthlySavingsUsd: Number(
+          item['estimatedMonthlySavingsUsd'] ?? 0,
+        ),
+        checkId: (item['checkId'] as string | null) ?? null,
+        createdAtIso: String(item['createdAtIso']),
+      }),
+    );
+  }
+}

@@ -1,0 +1,298 @@
+name: Deploy Lambdas
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lambda_code/**"
+      - "libs/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/deploy-lambdas.yml"
+  workflow_run:
+    workflows: ["Deploy Infrastructure"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: lambdas-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_LOCKS_TABLE: ${{ vars.TF_STATE_LOCKS_TABLE || 'track-aws-tf-locks' }}
+  TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'dev/terraform.tfstate' }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.artifact }})
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - path: api/api
+            artifact: api
+            tf_output: appsync_api_name
+          - path: ingestion/scan_ingestion
+            artifact: scan_ingestion
+            tf_output: scan_ingestion_name
+          - path: ingestion/inventory_scanner
+            artifact: inventory_scanner
+            tf_output: inventory_scanner_name
+          - path: ingestion/rightsizing_analyzer
+            artifact: rightsizing_analyzer
+            tf_output: rightsizing_analyzer_name
+          - path: ingestion/modernization_analyzer
+            artifact: modernization_analyzer
+            tf_output: modernization_analyzer_name
+          - path: ingestion/orphaned_analyzer
+            artifact: orphaned_analyzer
+            tf_output: orphaned_analyzer_name
+          - path: ingestion/dossier_generator
+            artifact: dossier_generator
+            tf_output: dossier_generator_name
+          - path: auth/post_confirmation
+            artifact: post_confirmation
+            tf_output: post_confirmation_name
+          - path: audit/resolve_account
+            artifact: resolve_account
+            tf_output: resolve_account_name
+          - path: audit/cloudquery_inventory
+            artifact: cloudquery_inventory
+            tf_output: cloudquery_inventory_name
+          - path: audit/load_prowler_results
+            artifact: load_prowler_results
+            tf_output: load_prowler_results_name
+          - path: audit/fail_audit
+            artifact: fail_audit
+            tf_output: fail_audit_name
+          - path: audit/aggregate_audit
+            artifact: aggregate_audit
+            tf_output: aggregate_audit_name
+          - path: audit/alert_dispatcher
+            artifact: alert_dispatcher
+            tf_output: alert_dispatcher_name
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup monorepo
+        uses: ./.github/actions/setup-node-monorepo
+
+      - name: Build libs (tsc)
+        run: npx nx run-many --target=build --projects=common,domain,application,infrastructure --parallel=4
+
+      - name: Bundle lambda with esbuild
+        working-directory: lambda_code/${{ matrix.path }}
+        run: npm run build
+
+      - name: Zip artifact
+        working-directory: lambda_code/${{ matrix.path }}
+        run: |
+          cd dist
+          zip -qr ../${{ matrix.artifact }}.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-zip
+          path: lambda_code/${{ matrix.path }}/${{ matrix.artifact }}.zip
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy (${{ matrix.artifact }})
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    environment: production
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - path: api/api
+            artifact: api
+            tf_output: appsync_api_name
+          - path: ingestion/scan_ingestion
+            artifact: scan_ingestion
+            tf_output: scan_ingestion_name
+          - path: ingestion/inventory_scanner
+            artifact: inventory_scanner
+            tf_output: inventory_scanner_name
+          - path: ingestion/rightsizing_analyzer
+            artifact: rightsizing_analyzer
+            tf_output: rightsizing_analyzer_name
+          - path: ingestion/modernization_analyzer
+            artifact: modernization_analyzer
+            tf_output: modernization_analyzer_name
+          - path: ingestion/orphaned_analyzer
+            artifact: orphaned_analyzer
+            tf_output: orphaned_analyzer_name
+          - path: ingestion/dossier_generator
+            artifact: dossier_generator
+            tf_output: dossier_generator_name
+          - path: auth/post_confirmation
+            artifact: post_confirmation
+            tf_output: post_confirmation_name
+          - path: audit/resolve_account
+            artifact: resolve_account
+            tf_output: resolve_account_name
+          - path: audit/cloudquery_inventory
+            artifact: cloudquery_inventory
+            tf_output: cloudquery_inventory_name
+          - path: audit/load_prowler_results
+            artifact: load_prowler_results
+            tf_output: load_prowler_results_name
+          - path: audit/fail_audit
+            artifact: fail_audit
+            tf_output: fail_audit_name
+          - path: audit/aggregate_audit
+            artifact: aggregate_audit
+            tf_output: aggregate_audit_name
+          - path: audit/alert_dispatcher
+            artifact: alert_dispatcher
+            tf_output: alert_dispatcher_name
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate AWS OIDC role secret
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo "::error::Falta configurar el secret AWS_DEPLOY_ROLE_ARN."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.2
+          terraform_wrapper: false
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}-zip
+          path: artifact
+
+      - name: Resolve function name from Terraform output
+        id: tf
+        working-directory: infra
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TF_STATE_BUCKET}" ]; then
+            echo "::error::Falta la repository variable TF_STATE_BUCKET."
+            exit 1
+          fi
+
+          terraform init -input=false -no-color \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_STATE_LOCKS_TABLE}" \
+            -backend-config="encrypt=true"
+
+          terraform output -json > tf-outputs.json 2> tf-output.err || true
+          if ! jq -e 'type == "object" and length > 0' tf-outputs.json >/dev/null 2>&1; then
+            cat tf-output.err || true
+            echo "::error::Terraform no tiene outputs disponibles. Ejecutá primero Deploy Infrastructure."
+            exit 1
+          fi
+
+          FN_NAME=$(jq -r '.["${{ matrix.tf_output }}"].value // empty' tf-outputs.json)
+          if [ -z "$FN_NAME" ] || [ "$FN_NAME" = "null" ]; then
+            echo "::warning::Output '${{ matrix.tf_output }}' ausente en el state remoto."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          APPSYNC_ENDPOINT=$(jq -r '.appsync_endpoint.value // empty' tf-outputs.json)
+          APPSYNC_API_KEY=$(jq -r '.appsync_api_key.value // empty' tf-outputs.json)
+
+          echo "function_name=$FN_NAME" >> "$GITHUB_OUTPUT"
+          echo "appsync_endpoint=$APPSYNC_ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$APPSYNC_API_KEY"
+          echo "appsync_api_key=$APPSYNC_API_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until Lambda is fully provisioned
+        if: steps.tf.outputs.skip != 'true'
+        run: |
+          aws lambda wait function-active-v2 \
+            --function-name "${{ steps.tf.outputs.function_name }}"
+
+      - name: Update Lambda code
+        if: steps.tf.outputs.skip != 'true'
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ steps.tf.outputs.function_name }}" \
+            --zip-file "fileb://artifact/${{ matrix.artifact }}.zip" \
+            --publish \
+            --no-cli-pager
+
+      - name: Wait until Lambda update is propagated
+        if: steps.tf.outputs.skip != 'true'
+        run: |
+          aws lambda wait function-updated-v2 \
+            --function-name "${{ steps.tf.outputs.function_name }}"
+
+      - name: Patch AppSync publisher environment
+        if: >-
+          steps.tf.outputs.skip != 'true' && (
+          matrix.artifact == 'inventory_scanner' ||
+          matrix.artifact == 'rightsizing_analyzer' ||
+          matrix.artifact == 'modernization_analyzer' ||
+          matrix.artifact == 'orphaned_analyzer' ||
+          matrix.artifact == 'dossier_generator'
+          )
+        env:
+          FUNCTION_NAME: ${{ steps.tf.outputs.function_name }}
+          APPSYNC_ENDPOINT: ${{ steps.tf.outputs.appsync_endpoint }}
+          APPSYNC_API_KEY: ${{ steps.tf.outputs.appsync_api_key }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$APPSYNC_ENDPOINT" ] || [ -z "$APPSYNC_API_KEY" ]; then
+            echo "::error::No se pudieron resolver appsync_endpoint/appsync_api_key desde Terraform outputs."
+            exit 1
+          fi
+
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --query 'Environment.Variables' \
+            --output json > current-env.json
+
+          jq \
+            --arg endpoint "$APPSYNC_ENDPOINT" \
+            --arg apiKey "$APPSYNC_API_KEY" \
+            '{Variables: (. + {APPSYNC_ENDPOINT: $endpoint, APPSYNC_API_KEY: $apiKey})}' \
+            current-env.json > env-payload.json
+
+          aws lambda update-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --environment "file://env-payload.json" \
+            --no-cli-pager
+
+          aws lambda wait function-updated-v2 \
+            --function-name "$FUNCTION_NAME"

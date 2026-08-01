@@ -1,0 +1,63 @@
+{
+  "name": "track-aws",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FinOps Cost Optimization Platform — Nx Monorepo / Hexagonal Architecture / AWS Serverless / MCP",
+  "scripts": {
+    "build": "nx run-many --target=build --projects=common,domain,application,infrastructure",
+    "build:lambdas": "npm run build && npm run build --workspaces --if-present",
+    "build:web": "nx build track-aws-web",
+    "start:web": "nx serve track-aws-web",
+    "sync:env": "bash scripts/sync-local-env.sh",
+    "seed:mock": "node scripts/seed-mock-data.mjs",
+    "send:scan": "node integrations/producers/send-scan.mjs"
+  },
+  "workspaces": [
+    "lambda_code/ingestion/*",
+    "lambda_code/api/*",
+    "lambda_code/auth/*",
+    "lambda_code/audit/*"
+  ],
+  "dependencies": {
+    "@angular/animations": "^17.3.0",
+    "@angular/common": "^17.3.0",
+    "@angular/compiler": "^17.3.0",
+    "@angular/core": "^17.3.0",
+    "@angular/forms": "^17.3.0",
+    "@angular/platform-browser": "^17.3.0",
+    "@angular/platform-browser-dynamic": "^17.3.0",
+    "@angular/router": "^17.3.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1085.0",
+    "@aws-sdk/client-cloudwatch": "^3.620.0",
+    "@aws-sdk/client-dynamodb": "^3.620.0",
+    "@aws-sdk/client-ec2": "^3.620.0",
+    "@aws-sdk/client-eventbridge": "^3.620.0",
+    "@aws-sdk/client-iam": "^3.620.0",
+    "@aws-sdk/client-s3": "^3.620.0",
+    "@aws-sdk/client-sfn": "^3.620.0",
+    "@aws-sdk/client-sns": "^3.620.0",
+    "@aws-sdk/client-sqs": "^3.620.0",
+    "@aws-sdk/client-sts": "^3.620.0",
+    "@aws-sdk/lib-dynamodb": "^3.620.0",
+    "@ionic/angular": "^8.4.0",
+    "aws-amplify": "^6.4.0",
+    "echarts": "^6.1.0",
+    "ionicons": "^7.4.0",
+    "ngx-echarts": "^17.2.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zod": "^3.24.1",
+    "zone.js": "~0.14.3"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^17.3.0",
+    "@angular/cli": "^17.3.0",
+    "@angular/compiler-cli": "^17.3.0",
+    "@nx/js": "19.5.0",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.17.0",
+    "esbuild": "^0.24.2",
+    "nx": "19.5.0",
+    "typescript": "~5.4.5"
+  }
+}

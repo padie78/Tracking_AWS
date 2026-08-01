@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Track_AWS — rol IAM de solo lectura para auditoría FinOps + Prowler (Fargate).
+  Desplegá este stack en la cuenta AWS del cliente. Track_AWS asume el rol
+  con ExternalId (anti confused-deputy) desde Lambdas y tareas Fargate.
+
+Parameters:
+  ExternalId:
+    Type: String
+    Description: External ID único generado por Track_AWS (obligatorio en AssumeRole).
+    MinLength: 8
+    MaxLength: 128
+    NoEcho: true
+
+  TrackAwsAccountId:
+    Type: String
+    Description: Account ID de la plataforma Track_AWS (12 dígitos).
+    AllowedPattern: '^\d{12}$'
+
+  TrackAwsScannerRoleArn:
+    Type: String
+    Description: >
+      ARN del rol scanner de Track_AWS (Lambda o Fargate task). Se acepta el account
+      root con ExternalId; este ARN queda documentado en outputs.
+    AllowedPattern: '^arn:aws:iam::\d{12}:role/.+$'
+
+  RoleName:
+    Type: String
+    Default: TrackAwsScannerRole
+    Description: Nombre del rol IAM en la cuenta del cliente.
+    AllowedPattern: '^[\w+=,.@-]+$'
+
+Resources:
+  TrackAwsScannerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: Read-only scanner role for Track_AWS (CloudQuery Lambda + Prowler Fargate)
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/SecurityAudit
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowTrackAwsAccountAssumeWithExternalId
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${TrackAwsAccountId}:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: TrackAwsFinOpsExtras
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CloudWatchMetrics
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: '*'
+              - Sid: PricingOptional
+                Effect: Allow
+                Action:
+                  - pricing:GetProducts
+                Resource: '*'
+
+Outputs:
+  RoleArn:
+    Description: ARN del rol — verificá desde Track_AWS Settings.
+    Value: !GetAtt TrackAwsScannerRole.Arn
+  RoleName:
+    Value: !Ref RoleName
+  DocumentedScannerRoleArn:
+    Value: !Ref TrackAwsScannerRoleArn
+  ExternalIdHint:
+    Description: El External ID ya está fijado en la trust policy (no lo compartas).
+    Value: 'Configured in trust policy Condition sts:ExternalId'

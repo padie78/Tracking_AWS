@@ -1,0 +1,69 @@
+{
+  "name": "track-aws-web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/track-aws-web/src",
+  "prefix": "app",
+  "targets": {
+    "build": {
+      "executor": "@angular-devkit/build-angular:browser",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/track-aws-web",
+        "index": "apps/track-aws-web/src/index.html",
+        "main": "apps/track-aws-web/src/main.ts",
+        "polyfills": ["zone.js"],
+        "tsConfig": "apps/track-aws-web/tsconfig.app.json",
+        "inlineStyleLanguage": "scss",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/track-aws-web/src/assets",
+            "output": "assets"
+          }
+        ],
+        "styles": ["apps/track-aws-web/src/styles.scss"],
+        "scripts": []
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "2mb",
+              "maximumError": "3mb"
+            }
+          ],
+          "outputHashing": "all",
+          "fileReplacements": [
+            {
+              "replace": "apps/track-aws-web/src/environments/environment.ts",
+              "with": "apps/track-aws-web/src/environments/environment.prod.ts"
+            }
+          ]
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "namedChunks": true,
+          "vendorChunk": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "executor": "@angular-devkit/build-angular:dev-server",
+      "configurations": {
+        "production": {
+          "buildTarget": "track-aws-web:build:production"
+        },
+        "development": {
+          "buildTarget": "track-aws-web:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    }
+  },
+  "tags": ["scope:web", "type:app"]
+}

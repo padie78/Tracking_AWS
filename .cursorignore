@@ -1,0 +1,38 @@
+# Dependencias
+**/node_modules/**
+
+# Builds y artefactos compilados
+**/dist/**
+**/build/**
+**/.angular/**
+lambda_code/**/dist/
+lambda_code/**/*.zip
+
+# Nx cache y temporales
+**/.nx/**
+**/tmp/**
+**/out-tsc/**
+
+# Terraform (providers, state, zips bootstrap)
+**/.terraform/**
+**/.artifacts/**
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Lockfiles grandes (no aportan al contexto de código)
+package-lock.json
+
+# IDE / OS
+**/.idea/**
+**/.vscode/**
+**/.DS_Store
+
+# Logs y coverage
+**/*.log
+**/coverage/**
+
+# Binarios y mapas de source (solo ruido para el índice)
+**/*.map
+**/*.js.map

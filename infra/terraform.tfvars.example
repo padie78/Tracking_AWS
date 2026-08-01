@@ -1,0 +1,11 @@
+project_name             = "track-aws"
+environment              = "dev"
+appsync_graphql_api_name = "api"
+aws_region               = "eu-central-1"
+# scan_ingestion_secret = "..."
+# bedrock_model_id = "anthropic.claude-3-haiku-20240307-v1:0"
+
+tags = {
+  CostCenter = "finops"
+  Owner      = "platform-team"
+}

@@ -1,0 +1,64 @@
+name: Deploy Prowler Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "integrations/prowler-fargate/**"
+      - ".github/workflows/deploy-prowler-image.yml"
+  workflow_run:
+    workflows: ["Deploy Infrastructure"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: prowler-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_STATE_LOCKS_TABLE: ${{ vars.TF_STATE_LOCKS_TABLE || 'track-aws-tf-locks' }}
+  TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'dev/terraform.tfstate' }}
+
+jobs:
+  push:
+    name: Build & push Prowler Fargate image
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read ECR URL from Terraform state
+        id: tf
+        working-directory: infra
+        run: |
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_STATE_LOCKS_TABLE}"
+          echo "ecr_url=$(terraform output -raw prowler_ecr_repository_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          ECR_URL: ${{ steps.tf.outputs.ecr_url }}
+        run: |
+          docker build -t "${ECR_URL}:latest" integrations/prowler-fargate
+          docker push "${ECR_URL}:latest"
+          echo "Pushed ${ECR_URL}:latest"

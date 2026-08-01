@@ -12,40 +12,86 @@ import { mapAuthErrorMessage } from '../../core/auth/auth.errors';
   template: `
     <div class="ta-auth">
       <form class="ta-auth__card" (ngSubmit)="submit()">
-        <h1>Crear cuenta</h1>
-        <p class="ta-meta">Alta multi-tenant (custom:tenant_id)</p>
+        <div>
+          <div class="ta-brand" style="margin-bottom: 0.35rem">Track <span>AWS</span></div>
+          <h1>Crear cuenta</h1>
+          <p class="ta-auth__lead">
+            El Tenant ID aísla tus datos. Usá un slug estable (ej. <code>demo</code>).
+          </p>
+        </div>
 
-        <label>
-          Email
-          <input type="email" name="email" [(ngModel)]="email" required />
-        </label>
-        <label>
-          Password
-          <input type="password" name="password" [(ngModel)]="password" required />
-        </label>
-        <label>
-          Tenant ID
-          <input type="text" name="tenantId" [(ngModel)]="tenantId" required />
-        </label>
+        <div class="ta-form-grid">
+          <div class="ta-float" [class.--filled]="!!email">
+            <input
+              class="ta-input"
+              type="email"
+              name="email"
+              [(ngModel)]="email"
+              required
+              autocomplete="email"
+              placeholder=" "
+            />
+            <label>Email</label>
+          </div>
 
-        @if (needsCode()) {
-          <label>
-            Código de confirmación
-            <input type="text" name="code" [(ngModel)]="code" />
-          </label>
-        }
+          <div class="ta-float" [class.--filled]="!!password">
+            <input
+              class="ta-input"
+              type="password"
+              name="password"
+              [(ngModel)]="password"
+              required
+              autocomplete="new-password"
+              placeholder=" "
+            />
+            <label>Password</label>
+          </div>
+
+          <div class="ta-field">
+            <div class="ta-float" [class.--filled]="!!tenantId">
+              <input
+                class="ta-input"
+                type="text"
+                name="tenantId"
+                [(ngModel)]="tenantId"
+                required
+                placeholder=" "
+              />
+              <label>Tenant ID</label>
+            </div>
+            <div class="ta-field__hint">Queda en Cognito como custom:tenant_id (inmutable en JWT).</div>
+          </div>
+
+          @if (needsCode()) {
+            <div class="ta-float" [class.--filled]="!!code">
+              <input
+                class="ta-input"
+                type="text"
+                name="code"
+                [(ngModel)]="code"
+                placeholder=" "
+                autocomplete="one-time-code"
+              />
+              <label>Código de confirmación</label>
+            </div>
+          }
+        </div>
 
         @if (error()) {
           <div class="ta-error">{{ error() }}</div>
         }
         @if (info()) {
-          <div class="ta-meta">{{ info() }}</div>
+          <div class="ta-info">{{ info() }}</div>
         }
 
-        <button class="ta-btn" type="submit" [disabled]="busy()">
-          {{ needsCode() ? 'Confirmar' : 'Registrar' }}
+        <button class="ta-btn ta-btn--block" type="submit" [disabled]="busy()">
+          {{ needsCode() ? (busy() ? 'Confirmando…' : 'Confirmar') : busy() ? 'Registrando…' : 'Registrar' }}
         </button>
-        <a routerLink="/login" class="ta-meta">Ya tengo cuenta</a>
+
+        <div class="ta-auth__footer">
+          <span class="ta-meta">Rol inicial: finops_admin</span>
+          <a routerLink="/login" class="ta-link">Ya tengo cuenta</a>
+        </div>
       </form>
     </div>
   `,

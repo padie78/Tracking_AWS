@@ -81,7 +81,8 @@ export class AuthService {
         userAttributes: {
           email,
           'custom:tenant_id': tenantId,
-          'custom:user_role': 'viewer',
+          // Primer usuario del tenant = admin (puede linkear cuentas AWS)
+          'custom:user_role': 'finops_admin',
         },
       },
     });

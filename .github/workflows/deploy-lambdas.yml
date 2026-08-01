@@ -275,6 +275,9 @@ jobs:
       - name: Patch AppSync publisher environment
         if: >-
           steps.tf.outputs.skip != 'true' && (
+          matrix.artifact == 'api' ||
+          matrix.artifact == 'aggregate_audit' ||
+          matrix.artifact == 'fail_audit' ||
           matrix.artifact == 'inventory_scanner' ||
           matrix.artifact == 'rightsizing_analyzer' ||
           matrix.artifact == 'modernization_analyzer' ||

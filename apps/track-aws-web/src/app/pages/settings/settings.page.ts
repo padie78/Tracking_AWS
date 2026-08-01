@@ -15,134 +15,241 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
   imports: [FormsModule],
   template: `
     <section class="ta-page">
-      <h1>Settings</h1>
-      <p>
-        Conectá una cuenta AWS con un rol cross-account (AssumeRole + External ID).
-        Track_AWS no guarda credenciales permanentes.
-      </p>
+      <div class="ta-page__head">
+        <div>
+          <h1>Settings</h1>
+          <p>
+            Conectá una cuenta AWS con AssumeRole + External ID. Track_AWS no guarda
+            credenciales permanentes.
+          </p>
+        </div>
+      </div>
 
       @if (!auth.isAdmin()) {
-        <div class="ta-card ta-error">Solo finops_admin puede gestionar conexiones.</div>
+        <div class="ta-error">Solo finops_admin puede gestionar conexiones.</div>
       } @else {
-        <form class="ta-card" style="display:grid;gap:0.75rem" (ngSubmit)="connect()">
-          <label>
-            Account ID (12 dígitos)
-            <input
-              name="accountId"
-              [(ngModel)]="accountId"
-              pattern="\\d{12}"
-              required
-              placeholder="123456789012"
-            />
-          </label>
-          <label>
-            Nombre (opcional)
-            <input name="displayName" [(ngModel)]="displayName" placeholder="Prod / FinOps" />
-          </label>
-          <label>
-            Nombre del rol IAM
-            <input name="roleName" [(ngModel)]="roleName" placeholder="TrackAwsScannerRole" />
-          </label>
-          <button class="ta-btn" type="submit" [disabled]="busy()">
-            {{ busy() ? 'Conectando…' : '1. Generar External ID + plantilla' }}
-          </button>
-        </form>
-
-        @if (linkResult(); as link) {
-          <div class="ta-card" style="display:grid;gap:0.75rem;margin-top:1rem">
-            <h2 style="margin:0;font-size:1.1rem">2. Desplegá el rol en la cuenta cliente</h2>
-            <div class="ta-meta">Status: {{ link.status }}</div>
-            <div class="ta-meta">Role ARN: {{ link.roleArn }}</div>
-            <label>
-              External ID (copiá al CFN / trust policy)
-              <input [value]="link.externalId" readonly (click)="$any($event.target).select()" />
-            </label>
-            <div class="ta-meta">Scanner account: {{ link.scannerAccountId }}</div>
-            <div class="ta-meta" style="word-break:break-all">
-              Scanner role: {{ link.scannerRoleArn }}
+        <div class="ta-form-grid" style="gap: 1.25rem">
+          <form class="ta-card" (ngSubmit)="connect()">
+            <div class="ta-steps">
+              <div class="ta-chip">Paso 1</div>
+              <h2 class="ta-steps__title">Generar vínculo cross-account</h2>
+              <p class="ta-meta" style="margin:0">
+                External ID + plantilla CloudFormation para el rol scanner.
+              </p>
             </div>
-            <a class="ta-btn" [href]="link.cloudFormationUrl" target="_blank" rel="noopener">
-              Abrir CloudFormation quick-create
-            </a>
-            <button
-              class="ta-btn ta-btn--ghost"
-              type="button"
-              [disabled]="busy()"
-              (click)="verify()"
-            >
-              {{ busy() ? 'Verificando…' : '3. Verificar AssumeRole' }}
-            </button>
-            <button
-              class="ta-btn ta-btn--ghost"
-              type="button"
-              [disabled]="busy() || link.status !== 'active'"
-              (click)="startAudit()"
-            >
-              {{ busy() ? 'Iniciando…' : '4. Start audit (Step Functions)' }}
-            </button>
-          </div>
-        }
 
-        @if (accounts().length) {
-          <div class="ta-card" style="margin-top:1rem">
-            <h2 style="margin:0 0 0.75rem;font-size:1.1rem">Cuentas vinculadas</h2>
-            <ul style="margin:0;padding-left:1.1rem">
-              @for (a of accounts(); track a.accountId) {
-                <li>
-                  <button type="button" class="ta-btn ta-btn--ghost" (click)="selectAccount(a.accountId)">
-                    {{ a.displayName }} ({{ a.accountId }}) — {{ a.status }}
-                  </button>
-                </li>
-              }
-            </ul>
-          </div>
-        }
+            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1rem">
+              <div class="ta-field">
+                <span class="ta-field__label">Account ID</span>
+                <input
+                  class="ta-input"
+                  name="accountId"
+                  [(ngModel)]="accountId"
+                  pattern="\\d{12}"
+                  required
+                  placeholder="123456789012"
+                />
+                <span class="ta-field__hint">12 dígitos de la cuenta a auditar.</span>
+              </div>
+              <div class="ta-field">
+                <span class="ta-field__label">Nombre</span>
+                <input
+                  class="ta-input"
+                  name="displayName"
+                  [(ngModel)]="displayName"
+                  placeholder="Prod / FinOps"
+                />
+              </div>
+              <div class="ta-field" style="grid-column: 1 / -1">
+                <span class="ta-field__label">Rol IAM</span>
+                <input
+                  class="ta-input"
+                  name="roleName"
+                  [(ngModel)]="roleName"
+                  placeholder="TrackAwsScannerRole"
+                />
+              </div>
+            </div>
 
-        <div class="ta-card" style="display:grid;gap:0.75rem;margin-top:1rem">
-          <h2 style="margin:0;font-size:1.1rem">Alertas al cliente</h2>
-          <p class="ta-meta" style="margin:0">
-            Webhook / Slack reciben digests con seguridad, tips de ahorro e inconsistencias
-            tras cada audit. Email: suscribí la dirección al topic SNS de la plataforma.
-          </p>
-          <label>
-            Tipo
-            <select name="alertKind" [(ngModel)]="alertKind">
-              <option value="slack">Slack Incoming Webhook</option>
-              <option value="webhook">Webhook HTTPS</option>
-              <option value="email">Email (vía SNS)</option>
-            </select>
-          </label>
-          <label>
-            Destino (URL o email)
-            <input name="alertTarget" [(ngModel)]="alertTarget" placeholder="https://hooks.slack.com/…" />
-          </label>
-          <label>
-            Etiqueta
-            <input name="alertLabel" [(ngModel)]="alertLabel" placeholder="Ops Slack" />
-          </label>
-          <button class="ta-btn" type="button" [disabled]="busy()" (click)="saveAlert()">
-            Guardar canal
-          </button>
-          @if (alertChannels().length) {
-            <ul style="margin:0;padding-left:1.1rem">
-              @for (c of alertChannels(); track c.channelId) {
-                <li>
-                  {{ c.label }} · {{ c.kind }} · {{ c.target }}
-                  <button type="button" class="ta-btn ta-btn--ghost" (click)="removeAlert(c.channelId)">
-                    Eliminar
-                  </button>
-                </li>
+            <div class="ta-form-actions">
+              <button class="ta-btn" type="submit" [disabled]="busy()">
+                {{ busy() ? 'Conectando…' : 'Generar External ID + plantilla' }}
+              </button>
+            </div>
+          </form>
+
+          @if (linkResult(); as link) {
+            <div class="ta-card">
+              <div class="ta-steps">
+                <div class="ta-chip" [class.ta-chip--ok]="link.status === 'active'" [class.ta-chip--warn]="link.status === 'pending'">
+                  Paso 2 · {{ link.status }}
+                </div>
+                <h2 class="ta-steps__title">Desplegá el rol en la cuenta cliente</h2>
+              </div>
+
+              @if (link.status === 'pending') {
+                <div class="ta-info" style="margin-top: 0.85rem">
+                  <strong>pending</strong> es normal tras el alta. Todavía no se puede auditar.
+                  <ol style="margin: 0.55rem 0 0; padding-left: 1.2rem; color: inherit">
+                    <li>Abrí CloudFormation (botón abajo) en la cuenta <code>{{ link.accountId }}</code>.</li>
+                    <li>Creá el stack (los parámetros External ID / Account ya vienen precargados).</li>
+                    <li>Cuando el stack termine en CREATE_COMPLETE, pulsá <strong>Verificar AssumeRole</strong>.</li>
+                    <li>Si pasa, el estado pasa a <strong>active</strong> y aparece usable en el combo.</li>
+                  </ol>
+                </div>
               }
-            </ul>
+
+              <div class="ta-form-grid" style="margin-top: 1rem">
+                <div class="ta-field">
+                  <span class="ta-field__label">Role ARN</span>
+                  <input class="ta-input" [value]="link.roleArn" readonly />
+                </div>
+                <div class="ta-field">
+                  <span class="ta-field__label">External ID</span>
+                  <input
+                    class="ta-input"
+                    [value]="link.externalId"
+                    readonly
+                    (click)="$any($event.target).select()"
+                  />
+                  <span class="ta-field__hint">Copiá al trust policy / CloudFormation.</span>
+                </div>
+                <div class="ta-form-grid ta-form-grid--2">
+                  <div class="ta-field">
+                    <span class="ta-field__label">Scanner account</span>
+                    <input class="ta-input" [value]="link.scannerAccountId" readonly />
+                  </div>
+                  <div class="ta-field">
+                    <span class="ta-field__label">Scanner role</span>
+                    <input class="ta-input" [value]="link.scannerRoleArn" readonly />
+                  </div>
+                </div>
+              </div>
+
+              <div class="ta-form-actions">
+                <a class="ta-btn" [href]="link.cloudFormationUrl" target="_blank" rel="noopener">
+                  Abrir CloudFormation
+                </a>
+                <button
+                  class="ta-btn ta-btn--secondary"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="verify()"
+                >
+                  {{ busy() ? 'Verificando…' : 'Verificar AssumeRole' }}
+                </button>
+                <button
+                  class="ta-btn ta-btn--ghost"
+                  type="button"
+                  [disabled]="busy() || link.status !== 'active'"
+                  (click)="startAudit()"
+                >
+                  {{ busy() ? 'Iniciando…' : 'Start audit' }}
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (accounts().length) {
+            <div class="ta-card ta-card--flat">
+              <h2 class="ta-card__title">Cuentas vinculadas</h2>
+              <ul class="ta-account-list">
+                @for (a of accounts(); track a.accountId) {
+                  <li>
+                    <div>
+                      <strong>{{ a.displayName || a.accountId }}</strong>
+                      <div class="ta-meta">{{ a.accountId }}</div>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;align-items:center">
+                      <span
+                        class="ta-chip"
+                        [class.ta-chip--ok]="a.status === 'active'"
+                        [class.ta-chip--warn]="a.status !== 'active'"
+                      >
+                        {{ a.status }}
+                      </span>
+                      <button
+                        type="button"
+                        class="ta-btn ta-btn--ghost ta-btn--sm"
+                        (click)="selectAccount(a.accountId)"
+                      >
+                        Usar
+                      </button>
+                    </div>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="ta-card">
+            <div class="ta-steps">
+              <div class="ta-chip">Alertas</div>
+              <h2 class="ta-steps__title">Canales al cliente</h2>
+              <p class="ta-meta" style="margin:0">
+                Slack / webhook / email (SNS) para digests post-audit.
+              </p>
+            </div>
+
+            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1rem">
+              <div class="ta-field">
+                <span class="ta-field__label">Tipo</span>
+                <select class="ta-select" name="alertKind" [(ngModel)]="alertKind">
+                  <option value="slack">Slack Incoming Webhook</option>
+                  <option value="webhook">Webhook HTTPS</option>
+                  <option value="email">Email (vía SNS)</option>
+                </select>
+              </div>
+              <div class="ta-field">
+                <span class="ta-field__label">Etiqueta</span>
+                <input class="ta-input" name="alertLabel" [(ngModel)]="alertLabel" placeholder="Ops Slack" />
+              </div>
+              <div class="ta-field" style="grid-column: 1 / -1">
+                <span class="ta-field__label">Destino</span>
+                <input
+                  class="ta-input"
+                  name="alertTarget"
+                  [(ngModel)]="alertTarget"
+                  placeholder="https://hooks.slack.com/…"
+                />
+              </div>
+            </div>
+
+            <div class="ta-form-actions">
+              <button class="ta-btn" type="button" [disabled]="busy()" (click)="saveAlert()">
+                Guardar canal
+              </button>
+            </div>
+
+            @if (alertChannels().length) {
+              <hr class="ta-divider" />
+              <ul class="ta-account-list">
+                @for (c of alertChannels(); track c.channelId) {
+                  <li>
+                    <div>
+                      <strong>{{ c.label }}</strong>
+                      <div class="ta-meta">{{ c.kind }} · {{ c.target }}</div>
+                    </div>
+                    <button
+                      type="button"
+                      class="ta-btn ta-btn--ghost ta-btn--sm"
+                      (click)="removeAlert(c.channelId)"
+                    >
+                      Eliminar
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+
+          @if (lastScanId()) {
+            <div class="ta-info">Último auditId: {{ lastScanId() }}</div>
+          }
+          @if (error()) {
+            <div class="ta-error">{{ error() }}</div>
           }
         </div>
-
-        @if (lastScanId()) {
-          <div class="ta-meta" style="margin-top:0.75rem">Último scanId: {{ lastScanId() }}</div>
-        }
-        @if (error()) {
-          <div class="ta-error" style="margin-top:0.75rem">{{ error() }}</div>
-        }
       }
     </section>
   `,

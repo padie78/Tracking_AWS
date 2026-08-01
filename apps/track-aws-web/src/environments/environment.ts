@@ -3,16 +3,16 @@ import type { AppRuntimeEnvironment } from './environment.types';
 export const environment: AppRuntimeEnvironment = {
   production: false,
   appsync: {
-    endpoint: 'REPLACE_APPSYNC_ENDPOINT',
+    endpoint: 'https://bgwwa46kqnhb7jg7c55lsakosu.appsync-api.eu-central-1.amazonaws.com/graphql',
     region: 'eu-central-1',
-    apiKey: 'REPLACE_APPSYNC_API_KEY',
+    apiKey: 'da2-v3nlwlr52jfrrnm2x4qkq5ydri',
   },
   cognito: {
-    userPoolId: 'REPLACE_COGNITO_USER_POOL_ID',
-    userPoolClientId: 'REPLACE_COGNITO_WEB_CLIENT_ID',
-    domain: 'REPLACE_COGNITO_DOMAIN',
+    userPoolId: 'eu-central-1_rCtpzUjtt',
+    userPoolClientId: '1i0183hpfqrj43qlb2nihkor1m',
+    domain: 'track-dev-473959757331',
     oauthRedirectSignIn: 'http://localhost:4200/auth/callback',
     oauthRedirectSignOut: 'http://localhost:4200/login',
   },
-  scanIngestionUrl: 'REPLACE_SCAN_URL',
+  scanIngestionUrl: 'https://vz9e0zlfdb.execute-api.eu-central-1.amazonaws.com/scan',
 };

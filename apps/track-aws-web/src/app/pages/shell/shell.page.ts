@@ -49,9 +49,10 @@ import {
           <br />realtime {{ realtime.connectionState() }}
         </div>
 
-        <label class="ta-account-picker">
-          Cuenta AWS
+        <label class="ta-account-picker ta-field">
+          <span class="ta-field__label">Cuenta AWS</span>
           <select
+            class="ta-select"
             [ngModel]="tenant.activeAccountId() ?? ''"
             (ngModelChange)="onAccountChange($event)"
           >

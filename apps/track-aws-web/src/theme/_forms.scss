@@ -1,0 +1,274 @@
+/* Controles estilo FloatLabel / InputText (calidad PrimeNG, sin dependencia) */
+
+.ta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.ta-field__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ta-text-muted);
+}
+
+.ta-field__hint {
+  font-size: 0.78rem;
+  color: var(--ta-text-muted);
+  line-height: 1.35;
+}
+
+.ta-field__error {
+  font-size: 0.8rem;
+  color: var(--ta-danger);
+}
+
+.ta-input,
+.ta-select,
+.ta-textarea {
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--ta-border);
+  background: var(--ta-bg-input);
+  color: var(--ta-text);
+  border-radius: var(--ta-radius-sm);
+  padding: 0.78rem 0.9rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.ta-input::placeholder,
+.ta-textarea::placeholder {
+  color: color-mix(in srgb, var(--ta-text-muted) 75%, transparent);
+}
+
+.ta-input:hover,
+.ta-select:hover,
+.ta-textarea:hover {
+  border-color: var(--ta-border-strong);
+}
+
+.ta-input:focus,
+.ta-select:focus,
+.ta-textarea:focus {
+  outline: none;
+  border-color: var(--ta-accent);
+  box-shadow: 0 0 0 3px var(--ta-focus);
+  background: #0f1a2c;
+}
+
+.ta-input:disabled,
+.ta-select:disabled,
+.ta-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ta-input[readonly] {
+  background: color-mix(in srgb, var(--ta-bg-panel) 80%, transparent);
+  cursor: text;
+}
+
+.ta-select {
+  padding-right: 2.4rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2393a1bb' d='M1.4.6 6 5.2 10.6.6 12 2 6 8 0 2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  cursor: pointer;
+}
+
+.ta-textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+/* Float label (PrimeNG FloatLabel) */
+.ta-float {
+  position: relative;
+  display: block;
+}
+
+.ta-float > .ta-input,
+.ta-float > .ta-select,
+.ta-float > .ta-textarea {
+  padding-top: 1.35rem;
+  padding-bottom: 0.55rem;
+}
+
+.ta-float > label {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.92rem;
+  color: var(--ta-text-muted);
+  pointer-events: none;
+  transition:
+    top 140ms ease,
+    transform 140ms ease,
+    font-size 140ms ease,
+    color 140ms ease;
+}
+
+.ta-float:has(.ta-textarea) > label {
+  top: 1.1rem;
+  transform: none;
+}
+
+.ta-float:focus-within > label,
+.ta-float:has(.ta-input:not(:placeholder-shown)) > label,
+.ta-float:has(.ta-select:not([value=''])) > label,
+.ta-float:has(.ta-input[value]:not([value=''])) > label,
+.ta-float.--filled > label {
+  top: 0.45rem;
+  transform: none;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ta-accent);
+}
+
+.ta-form-grid {
+  display: grid;
+  gap: var(--ta-space-4);
+}
+
+.ta-form-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ta-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.ta-btn {
+  border: 0;
+  border-radius: var(--ta-radius-sm);
+  padding: 0.72rem 1.1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--ta-accent);
+  color: #071018;
+  transition:
+    background 140ms ease,
+    transform 120ms ease,
+    opacity 120ms ease;
+}
+
+.ta-btn:hover:not(:disabled) {
+  background: var(--ta-accent-hover);
+}
+
+.ta-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ta-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ta-btn--ghost {
+  background: transparent;
+  color: var(--ta-text);
+  border: 1px solid var(--ta-border);
+}
+
+.ta-btn--ghost:hover:not(:disabled) {
+  background: var(--ta-bg-panel);
+  border-color: var(--ta-border-strong);
+}
+
+.ta-btn--secondary {
+  background: color-mix(in srgb, var(--ta-accent-2) 22%, transparent);
+  color: #dbe7ff;
+  border: 1px solid color-mix(in srgb, var(--ta-accent-2) 45%, transparent);
+}
+
+.ta-btn--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ta-accent-2) 32%, transparent);
+}
+
+.ta-btn--sm {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.ta-btn--block {
+  width: 100%;
+}
+
+.ta-link {
+  color: var(--ta-accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.ta-link:hover {
+  text-decoration: underline;
+}
+
+.ta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--ta-border);
+  background: var(--ta-bg-panel);
+  font-size: 0.75rem;
+  color: var(--ta-text-muted);
+}
+
+.ta-chip--ok {
+  color: var(--ta-success);
+  border-color: color-mix(in srgb, var(--ta-success) 40%, transparent);
+  background: color-mix(in srgb, var(--ta-success) 12%, transparent);
+}
+
+.ta-chip--warn {
+  color: var(--ta-warning);
+  border-color: color-mix(in srgb, var(--ta-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--ta-warning) 12%, transparent);
+}
+
+.ta-steps {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--ta-space-4);
+}
+
+.ta-steps__title {
+  margin: 0;
+  font-family: var(--ta-font-display);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.ta-divider {
+  height: 1px;
+  background: var(--ta-border);
+  border: 0;
+  margin: var(--ta-space-4) 0;
+}
+
+@media (max-width: 720px) {
+  .ta-form-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}

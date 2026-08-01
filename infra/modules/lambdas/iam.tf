@@ -114,9 +114,9 @@ data "aws_iam_policy_document" "lambda_inline" {
   }
 
   statement {
-    sid     = "WriteAuditReports"
-    effect  = "Allow"
-    actions = ["s3:PutObject", "s3:AbortMultipartUpload"]
+    sid       = "WriteAuditReports"
+    effect    = "Allow"
+    actions   = ["s3:PutObject", "s3:AbortMultipartUpload"]
     resources = ["${var.reports_bucket_arn}/*"]
   }
 

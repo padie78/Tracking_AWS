@@ -30,8 +30,8 @@ data "aws_iam_policy_document" "sfn_invoke" {
   }
 
   statement {
-    sid     = "RunProwlerFargate"
-    effect  = "Allow"
+    sid    = "RunProwlerFargate"
+    effect = "Allow"
     actions = [
       "ecs:RunTask",
       "ecs:StopTask",

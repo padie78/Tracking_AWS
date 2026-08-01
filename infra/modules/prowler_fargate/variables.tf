@@ -20,8 +20,8 @@ variable "tags" {
 }
 
 variable "prowler_image_tag" {
-  type    = string
-  default = "latest"
+  type        = string
+  default     = "latest"
   description = "Tag de la imagen en ECR (pusheada por CI o build local)"
 }
 

@@ -45,23 +45,6 @@ resource "aws_cloudwatch_event_target" "sns_digest" {
   arn            = aws_sns_topic.audit_alerts.arn
 }
 
-resource "aws_cloudwatch_event_target" "dispatcher_digest" {
-  count          = var.alert_dispatcher_arn != "" ? 1 : 0
-  rule           = aws_cloudwatch_event_rule.customer_digest.name
-  event_bus_name = aws_cloudwatch_event_bus.audit.name
-  target_id      = "AuditAlertDispatcher"
-  arn            = var.alert_dispatcher_arn
-}
-
-resource "aws_lambda_permission" "events_invoke_dispatcher" {
-  count         = var.alert_dispatcher_arn != "" ? 1 : 0
-  statement_id  = "AllowEventBridgeInvokeAlertDispatcher"
-  action        = "lambda:InvokeFunction"
-  function_name = var.alert_dispatcher_arn
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.customer_digest.arn
-}
-
 data "aws_iam_policy_document" "sns_from_events" {
   statement {
     effect  = "Allow"

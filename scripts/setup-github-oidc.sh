@@ -103,11 +103,15 @@ else
 fi
 rm -f "${TRUST_FILE}"
 
-# 3. Permisos (PoC: PowerUser; en prod usar política mínima)
-echo "==> Adjuntando PowerUserAccess (PoC)..."
+# 3. Permisos de deploy
+# PowerUserAccess NO incluye IAM (CreateRole, etc.). Terraform necesita IAM.
+echo "==> Adjuntando PowerUserAccess + IAMFullAccess (PoC)..."
 aws iam attach-role-policy \
   --role-name "${ROLE_NAME}" \
   --policy-arn "arn:aws:iam::aws:policy/PowerUserAccess" 2>/dev/null || true
+aws iam attach-role-policy \
+  --role-name "${ROLE_NAME}" \
+  --policy-arn "arn:aws:iam::aws:policy/IAMFullAccess" 2>/dev/null || true
 
 echo ""
 echo "=============================================="

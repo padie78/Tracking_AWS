@@ -5,8 +5,6 @@ locals {
   }
   # ARN predecible para evitar ciclo lambdas ↔ Step Functions
   audit_state_machine_arn = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${local.name_prefix}-audit"
-  # ARN predecible para EventBridge → alert_dispatcher (evita ciclo alerts ↔ lambdas)
-  alert_dispatcher_arn = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${local.name_prefix}-alert-dispatcher"
 }
 
 data "aws_caller_identity" "current" {}
@@ -35,9 +33,8 @@ module "queues" {
 }
 
 module "alerts" {
-  source               = "./modules/alerts"
-  name_prefix          = local.name_prefix
-  alert_dispatcher_arn = local.alert_dispatcher_arn
+  source      = "./modules/alerts"
+  name_prefix = local.name_prefix
 }
 
 module "prowler_fargate" {
@@ -83,6 +80,22 @@ module "lambdas" {
   reports_bucket_arn          = module.storage.reports_bucket_arn
   prowler_findings_bucket     = module.storage.artifacts_bucket_name
   prowler_findings_bucket_arn = module.storage.artifacts_bucket_arn
+}
+
+# EventBridge → alert_dispatcher (después de crear la Lambda; evita 404 AddPermission)
+resource "aws_cloudwatch_event_target" "alert_dispatcher" {
+  rule           = module.alerts.customer_digest_rule_name
+  event_bus_name = module.alerts.event_bus_name
+  target_id      = "AuditAlertDispatcher"
+  arn            = module.lambdas.alert_dispatcher_arn
+}
+
+resource "aws_lambda_permission" "events_invoke_alert_dispatcher" {
+  statement_id  = "AllowEventBridgeInvokeAlertDispatcher"
+  action        = "lambda:InvokeFunction"
+  function_name = module.lambdas.alert_dispatcher_name
+  principal     = "events.amazonaws.com"
+  source_arn    = module.alerts.customer_digest_rule_arn
 }
 
 module "orchestration" {

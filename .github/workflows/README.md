@@ -21,17 +21,23 @@
 |--------|-------------|
 | `SCAN_INGESTION_SECRET` | Header `x-scan-secret` para `POST /scan` |
 
-### Variables (obligatorio tras bootstrap)
+### Variables (recomendadas tras bootstrap)
+
+> Los workflows usan `environment: production`. Creá las Variables en  
+> **Settings → Environments → production → Environment variables**  
+> (o en Repository variables). Si `TF_STATE_BUCKET` falta, `deploy-infra`  
+> intenta `track-aws-tfstate-<account_id>` (nombre default del bootstrap).
 
 | Nombre | Ejemplo |
 |--------|---------|
-| `TF_STATE_BUCKET` | `track-aws-tfstate-<account_id>` |
+| `TF_STATE_BUCKET` | `track-aws-tfstate-473959757331` |
 | `TF_STATE_LOCKS_TABLE` | `track-aws-tf-locks` |
 | `AWS_REGION` | `eu-central-1` |
 | `TF_STATE_KEY` | `dev/terraform.tfstate` |
 
 ```bash
 cd infra/bootstrap && terraform output -raw state_bucket
+# En GitHub UI: Environments → production → Add variable
 ```
 
 ## Orden del primer deploy

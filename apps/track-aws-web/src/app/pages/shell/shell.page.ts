@@ -3,7 +3,6 @@ import {
   OnInit,
   ViewEncapsulation,
   computed,
-  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -17,13 +16,14 @@ import {
 } from '../../core/navigation/app-nav.config';
 import { roleLabel } from '../../core/auth/user-role';
 import { TenantContextService } from '../../core/tenant/tenant-context.service';
-import { AppSyncRealtimeService } from '../../services/appsync-realtime.service';
+import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { ScanService } from '../../services/scan.service';
 import {
   NotificationCenterComponent,
   ToastStackComponent,
 } from '../../ui/notifications/notification-center.component';
+import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 
 @Component({
   standalone: true,
@@ -36,17 +36,21 @@ import {
     FormsModule,
     NotificationCenterComponent,
     ToastStackComponent,
+    StatusBadgeComponent,
   ],
   template: `
     <div class="ta-shell" [attr.data-role]="auth.userRole()">
       <aside class="ta-shell__nav">
         <div class="ta-brand">Track <span>AWS</span></div>
-        <div class="ta-meta">
-          {{ roleLabel(auth.userRole()) }} · {{ navFocus() }}
-          @if (auth.tenantId()) {
-            <br />tenant {{ auth.tenantId() }}
+        <div class="ta-shell__identity">
+          <div class="ta-shell__role">{{ roleLabel(auth.userRole()) }} · {{ navFocus() }}</div>
+          @if (auth.tenantId(); as tid) {
+            <div class="ta-meta">tenant {{ tid }}</div>
           }
-          <br />realtime {{ realtime.connectionState() }}
+          <div class="ta-shell__live-row">
+            <span class="ta-dot" [attr.data-state]="audit.connectionState()"></span>
+            <span class="ta-meta">realtime {{ audit.connectionState() }}</span>
+          </div>
         </div>
 
         <label class="ta-account-picker ta-field">
@@ -90,7 +94,19 @@ import {
               }
             </div>
           </div>
-          <ta-notification-center />
+          <div class="ta-topbar__right">
+            @if (audit.isRunning()) {
+              <a class="ta-live-pill" routerLink="/tabs/audits">
+                <span class="ta-live-pill__pulse"></span>
+                Audit {{ audit.displayStatus() }} · {{ audit.progressPercent() }}%
+              </a>
+            } @else {
+              @if (audit.activeAudit(); as a) {
+                <ta-status-badge [status]="a.status" />
+              }
+            }
+            <ta-notification-center />
+          </div>
         </header>
         <main class="ta-shell__main">
           <router-outlet />
@@ -104,7 +120,7 @@ import {
 export class ShellPageComponent implements OnInit {
   readonly auth = inject(AuthService);
   readonly tenant = inject(TenantContextService);
-  readonly realtime = inject(AppSyncRealtimeService);
+  readonly audit = inject(AuditLiveService);
   readonly notes = inject(NotificationService);
   private readonly scanService = inject(ScanService);
   readonly roleLabel = roleLabel;
@@ -116,52 +132,8 @@ export class ShellPageComponent implements OnInit {
     Awaited<ReturnType<ScanService['listAwsAccounts']>>
   >([]);
 
-  private lastAuditStatusKey = '';
-  private lastFindingId = '';
-
-  constructor() {
-    effect(() => {
-      const st = this.realtime.auditStatus();
-      if (!st) return;
-      const key = `${st.auditId}:${st.status}:${st.criticalCount}:${st.findingCount}`;
-      if (key === this.lastAuditStatusKey) return;
-      this.lastAuditStatusKey = key;
-
-      if (st.status === 'completed' || st.status === 'aggregating') {
-        this.notes.push({
-          kind: st.criticalCount > 0 ? 'critical' : 'success',
-          title: `Audit ${st.status}`,
-          body: `Score ${st.globalScore} · ${st.findingCount} findings · CRITICAL ${st.criticalCount} · $${st.estimatedMonthlySavingsUsd.toFixed(0)}/mes`,
-          href: '/tabs/audits',
-        });
-      } else if (st.criticalCount > 0) {
-        this.notes.push({
-          kind: 'critical',
-          title: 'Hallazgos CRITICAL',
-          body: `${st.criticalCount} críticos en audit ${st.auditId.slice(0, 8)}…`,
-          href: '/tabs/secops',
-        });
-      }
-    });
-
-    effect(() => {
-      const findings = this.realtime.liveFindings();
-      const latest = findings[0];
-      if (!latest || latest.findingId === this.lastFindingId) return;
-      this.lastFindingId = latest.findingId;
-      this.notes.push({
-        kind: latest.estimatedMonthlySavingsUsd > 0 ? 'savings' : 'info',
-        title: latest.title,
-        body: `${latest.category} · $${latest.estimatedMonthlySavingsUsd.toFixed(0)}/mes`,
-        href: '/tabs/finops',
-        toast: true,
-      });
-    });
-  }
-
   ngOnInit(): void {
-    const tenantId = this.auth.tenantId();
-    if (tenantId) this.realtime.ensureConnected(tenantId);
+    void this.audit.bootstrap();
     void this.loadAccounts();
   }
 
@@ -186,10 +158,10 @@ export class ShellPageComponent implements OnInit {
       body: `Ahora auditás ${accountId}`,
       toast: true,
     });
+    void this.audit.refreshAudits();
   }
 
   async logout(): Promise<void> {
-    this.realtime.disconnect();
     this.notes.clear();
     await this.auth.logout();
     window.location.href = '/login';

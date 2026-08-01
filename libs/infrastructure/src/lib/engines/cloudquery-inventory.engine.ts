@@ -22,6 +22,10 @@ export class CloudQueryInventoryEngine {
       ec2Count: number;
       ebsCount: number;
       eipCount: number;
+      runningEc2Count: number;
+      stoppedEc2Count: number;
+      unattachedEbsCount: number;
+      idleEipCount: number;
     };
     finopsFindings: FinOpsFinding[];
     auditFindings: AuditFinding[];
@@ -59,6 +63,12 @@ export class CloudQueryInventoryEngine {
         ec2Count: snapshot.ec2Instances.length,
         ebsCount: snapshot.ebsVolumes.length,
         eipCount: snapshot.elasticIps.length,
+        runningEc2Count: snapshot.ec2Instances.filter((i) => i.state === 'running')
+          .length,
+        stoppedEc2Count: snapshot.ec2Instances.filter((i) => i.state === 'stopped')
+          .length,
+        unattachedEbsCount: snapshot.ebsVolumes.filter((v) => !v.attached).length,
+        idleEipCount: snapshot.elasticIps.filter((e) => !e.associated).length,
       },
       finopsFindings: finops,
       auditFindings,

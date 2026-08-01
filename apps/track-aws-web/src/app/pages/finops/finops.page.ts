@@ -7,11 +7,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import {
-  AuditFindingView,
-  AuditJobView,
-  ScanService,
-} from '../../services/scan.service';
+import { AuditLiveService } from '../../core/audit/audit-live.service';
+import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
 import { savingsBarOption, severityPieOption } from '../../ui/charts/chart-options';
 
@@ -21,18 +18,18 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
   standalone: true,
   selector: 'app-finops-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [DecimalPipe, TaEchartComponent],
+  imports: [DecimalPipe, PageHeaderComponent, TaEchartComponent],
   template: `
     <section class="ta-page ta-page--wide">
-      <div class="ta-page__head">
-        <div>
-          <h1>FinOps</h1>
-          <p>Oportunidades de ahorro: right-sizing, modernización y recursos huérfanos.</p>
-        </div>
+      <ta-page-header
+        eyebrow="Cost"
+        title="FinOps"
+        subtitle="Qué está sobredimensionado, huérfano o modernizable — y cuánto podés ahorrar."
+      >
         <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="refresh()">
           {{ busy() ? 'Cargando…' : 'Actualizar' }}
         </button>
-      </div>
+      </ta-page-header>
 
       @if (error()) {
         <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
@@ -83,14 +80,14 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
               <div>
                 <strong>{{ f.title }}</strong>
                 <div class="ta-meta">
-                  {{ f.category }} · {{ f.resourceId }} ·
-                  USD {{ f.estimatedMonthlySavingsUsd | number: '1.0-2' }}/mes
+                  {{ f.category }} · {{ f.resourceId }} · USD
+                  {{ f.estimatedMonthlySavingsUsd | number: '1.0-2' }}/mes
                 </div>
-                <div class="ta-meta">{{ f.recommendedAction }}</div>
+                <div class="ta-meta"><strong>Cómo ahorrar:</strong> {{ f.recommendedAction }}</div>
               </div>
             </li>
           } @empty {
-            <li class="ta-meta">Sin findings FinOps en el último audit.</li>
+            <li class="ta-meta">Sin findings FinOps en el audit activo.</li>
           }
         </ul>
       </div>
@@ -98,7 +95,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
   `,
 })
 export class FinopsPageComponent implements OnInit {
-  private readonly scanService = inject(ScanService);
+  private readonly audit = inject(AuditLiveService);
 
   readonly tabs: Array<{ id: FinopsTab; label: string }> = [
     { id: 'all', label: 'Todos' },
@@ -108,13 +105,12 @@ export class FinopsPageComponent implements OnInit {
   ];
 
   readonly tab = signal<FinopsTab>('all');
-  readonly findings = signal<AuditFindingView[]>([]);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
   readonly filtered = computed(() => {
     const t = this.tab();
-    const list = this.findings().filter((f) => f.domain === 'finops');
+    const list = this.audit.findings().filter((f) => f.domain === 'finops');
     if (t === 'all') return list;
     return list.filter((f) => f.category === t);
   });
@@ -127,9 +123,7 @@ export class FinopsPageComponent implements OnInit {
     savingsBarOption(
       this.filtered()
         .filter((f) => f.estimatedMonthlySavingsUsd > 0)
-        .sort(
-          (a, b) => b.estimatedMonthlySavingsUsd - a.estimatedMonthlySavingsUsd,
-        )
+        .sort((a, b) => b.estimatedMonthlySavingsUsd - a.estimatedMonthlySavingsUsd)
         .map((f) => ({
           name: f.resourceId || f.title.slice(0, 24),
           value: Math.round(f.estimatedMonthlySavingsUsd),
@@ -153,15 +147,9 @@ export class FinopsPageComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     try {
-      const audits: AuditJobView[] = await this.scanService.listAudits({ limit: 1 });
-      const latest = audits[0];
-      if (!latest) {
-        this.findings.set([]);
-        return;
-      }
-      this.findings.set(
-        await this.scanService.listAuditFindings(latest.auditId, 'finops'),
-      );
+      await this.audit.refreshAudits();
+      const id = this.audit.activeAudit()?.auditId;
+      if (id) await this.audit.refreshFindings(id);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {

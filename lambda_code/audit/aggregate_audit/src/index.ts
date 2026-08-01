@@ -11,7 +11,10 @@ import {
   CustomerAuditDigestPublisher,
   DynamoDbAuditFindingRepository,
   DynamoDbAuditJobRepository,
+  ProwlerSecurityEngine,
+  type InventorySummaryView,
 } from '@track-aws/infrastructure';
+import { randomUUID } from 'node:crypto';
 
 type SerializedFinding = {
   findingId: string;
@@ -34,8 +37,14 @@ type Input = {
   auditId: string;
   accountId: string;
   correlationId: string;
-  finops: { findings: SerializedFinding[]; inventorySummary?: unknown };
-  secops: { findings: SerializedFinding[] };
+  roleArn?: string;
+  externalId?: string;
+  regions?: string[];
+  finops: {
+    findings: SerializedFinding[];
+    inventorySummary?: InventorySummaryView | null;
+  };
+  secops: { findings: SerializedFinding[]; warning?: string; engine?: string };
 };
 
 function scoreFromFindings(
@@ -55,6 +64,120 @@ function scoreFromFindings(
   return Math.max(0, Math.min(100, 100 - penalty));
 }
 
+function architectureFindingsFromPillars(input: {
+  tenantId: string;
+  auditId: string;
+  pillarScores: WafPillarScores;
+}): SerializedFinding[] {
+  const now = new Date().toISOString();
+  const mapping: Array<{
+    key: keyof WafPillarScores;
+    category: string;
+    title: string;
+    action: string;
+  }> = [
+    {
+      key: 'security',
+      category: 'security',
+      title: 'Brecha en pilar Security (WAF)',
+      action: 'Priorizá remediación SecOps CRITICAL/HIGH y endurecé IAM/network.',
+    },
+    {
+      key: 'costOptimization',
+      category: 'cost',
+      title: 'Brecha en pilar Cost Optimization (WAF)',
+      action: 'Ejecutá right-sizing, apagá idle y revisá EIPs/EBS huérfanos.',
+    },
+    {
+      key: 'reliability',
+      category: 'reliability',
+      title: 'Brecha en pilar Reliability (WAF)',
+      action: 'Revisá multi-AZ, backups y límites de cuota en servicios críticos.',
+    },
+    {
+      key: 'performanceEfficiency',
+      category: 'performance',
+      title: 'Brecha en pilar Performance Efficiency (WAF)',
+      action: 'Alineá tipos de instancia y storage al workload real.',
+    },
+  ];
+
+  return mapping
+    .filter((m) => input.pillarScores[m.key] < 70)
+    .map((m) => {
+      const score = input.pillarScores[m.key];
+      const severity: AuditSeverity =
+        score < 40 ? 'CRITICAL' : score < 55 ? 'HIGH' : 'MEDIUM';
+      return {
+        findingId: randomUUID(),
+        domain: 'architecture' as const,
+        category: m.category,
+        severity,
+        resourceArn: `waf:${m.key}`,
+        resourceId: m.key,
+        region: 'global',
+        title: m.title,
+        rationale: `Score del pilar ${m.key}=${score}/100. Por debajo del umbral 70.`,
+        recommendedAction: m.action,
+        estimatedMonthlySavingsUsd: 0,
+        checkId: `waf.${m.key}`,
+        createdAtIso: now,
+      };
+    });
+}
+
+function serializeFinding(f: AuditFinding): SerializedFinding {
+  return {
+    findingId: f.findingId,
+    domain: f.domain,
+    category: f.category,
+    severity: f.severity,
+    resourceArn: f.resourceArn,
+    resourceId: f.resourceId,
+    region: f.region,
+    title: f.title,
+    rationale: f.rationale,
+    recommendedAction: f.recommendedAction,
+    estimatedMonthlySavingsUsd: f.estimatedMonthlySavingsUsd,
+    checkId: f.checkId,
+    createdAtIso: f.createdAtIso,
+  };
+}
+
+async function resolveSecopsFindings(event: Input): Promise<SerializedFinding[]> {
+  const fromProwler = event.secops?.findings ?? [];
+  if (fromProwler.length > 0) return fromProwler;
+
+  if (!event.roleArn || !event.externalId) {
+    console.warn('SecOps vacío y sin roleArn/externalId para fallback inline');
+    return [];
+  }
+
+  console.warn('SecOps vacío (Prowler); ejecutando checks inline IAM/SG/S3', {
+    auditId: event.auditId,
+    warning: event.secops?.warning,
+  });
+
+  try {
+    const engine = new ProwlerSecurityEngine();
+    const result = await engine.run({
+      tenantId: event.tenantId,
+      auditId: event.auditId,
+      accountId: event.accountId,
+      correlationId: event.correlationId,
+      roleArn: event.roleArn,
+      externalId: event.externalId,
+      regions: event.regions ?? [],
+    });
+    return result.auditFindings.map(serializeFinding);
+  } catch (err) {
+    console.error('Fallback SecOps inline falló', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
 export const handler: Handler<Input> = async (event) => {
   const auditRepo = new DynamoDbAuditJobRepository();
   const findingRepo = new DynamoDbAuditFindingRepository();
@@ -67,9 +190,30 @@ export const handler: Handler<Input> = async (event) => {
     throw new Error(`Audit no encontrado: ${event.auditId}`);
   }
 
+  const inventorySummary = event.finops?.inventorySummary ?? null;
+  const secopsFindings = await resolveSecopsFindings(event);
+
+  const securityScore = scoreFromFindings(secopsFindings, 'secops');
+  const costScore = scoreFromFindings(event.finops?.findings ?? [], 'finops');
+  const pillarScores: WafPillarScores = {
+    operationalExcellence: Math.round((securityScore + costScore) / 2),
+    security: securityScore,
+    reliability: Math.max(0, securityScore - 5),
+    performanceEfficiency: costScore,
+    costOptimization: costScore,
+    sustainability: Math.round(costScore * 0.9),
+  };
+
+  const archSerialized = architectureFindingsFromPillars({
+    tenantId: event.tenantId,
+    auditId: event.auditId,
+    pillarScores,
+  });
+
   const allSerialized = [
     ...(event.finops?.findings ?? []),
-    ...(event.secops?.findings ?? []),
+    ...secopsFindings,
+    ...archSerialized,
   ];
 
   const findings = allSerialized.map((f) =>
@@ -101,19 +245,7 @@ export const handler: Handler<Input> = async (event) => {
     0,
   );
 
-  const securityScore = scoreFromFindings(allSerialized, 'secops');
-  const costScore = scoreFromFindings(allSerialized, 'finops');
-
-  const pillarScores: WafPillarScores = {
-    operationalExcellence: Math.round((securityScore + costScore) / 2),
-    security: securityScore,
-    reliability: Math.max(0, securityScore - highCount),
-    performanceEfficiency: costScore,
-    costOptimization: costScore,
-    sustainability: Math.round(costScore * 0.9),
-  };
-
-  const completed = audit.withStatus('aggregating').withAggregation({
+  const completed = audit.withAggregation({
     findingCount: findings.length,
     criticalCount,
     highCount,
@@ -152,10 +284,26 @@ export const handler: Handler<Input> = async (event) => {
     })),
   });
 
-  const report = await reports.generate({
-    audit: completed,
-    findings,
-  });
+  let reportId: string | null = null;
+  let reportS3Key: string | null = null;
+  let aiGenerated = false;
+  let reportInventory = inventorySummary;
+
+  try {
+    const report = await reports.generate({
+      audit: completed,
+      findings,
+      inventorySummary,
+    });
+    reportId = report.reportId;
+    reportS3Key = report.s3Key;
+    aiGenerated = report.aiGenerated;
+    reportInventory = report.inventorySummary;
+  } catch (err) {
+    console.error('Generación de informe falló; audit queda completed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return {
     auditId: completed.auditId,
@@ -165,7 +313,10 @@ export const handler: Handler<Input> = async (event) => {
     highCount: completed.highCount,
     globalScore: completed.globalScore,
     estimatedMonthlySavingsUsd: completed.estimatedMonthlySavingsUsd,
-    reportId: report.reportId,
-    reportS3Key: report.s3Key,
+    reportId,
+    reportS3Key,
+    aiGenerated,
+    inventorySummary: reportInventory,
+    secopsFindingCount: secopsFindings.length,
   };
 };

@@ -1,201 +1,157 @@
-import { DecimalPipe } from '@angular/common';
-import {
-  Component,
-  OnDestroy,
-  OnInit,
-  ViewEncapsulation,
-  inject,
-  signal,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../core/services/auth.service';
-import {
-  AuditFindingView,
-  AuditJobView,
-  ScanService,
-} from '../../services/scan.service';
-import { AppSyncRealtimeService } from '../../services/appsync-realtime.service';
-
-const TERMINAL = new Set(['completed', 'failed']);
+import { DatePipe, DecimalPipe } from '@angular/common';
+import { Component, OnInit, ViewEncapsulation, computed, inject } from '@angular/core';
+import { AuditLiveService } from '../../core/audit/audit-live.service';
+import { TenantContextService } from '../../core/tenant/tenant-context.service';
+import { PageHeaderComponent } from '../../ui/layout/page-header.component';
+import { AuditProgressComponent } from '../../ui/audit/audit-progress.component';
+import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 
 @Component({
   standalone: true,
   selector: 'app-audits-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, DecimalPipe],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    PageHeaderComponent,
+    AuditProgressComponent,
+    StatusBadgeComponent,
+  ],
   template: `
-    <section class="ta-page">
-      <div class="ta-page__head">
-        <div>
-          <h1>Audits</h1>
-          <p>Historial de ejecuciones Step Functions (FinOps + Prowler).</p>
-        </div>
-        <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="refresh()">
-          {{ busy() ? 'Cargando…' : 'Actualizar lista' }}
+    <section class="ta-page ta-page--wide">
+      <ta-page-header
+        eyebrow="Executions"
+        title="Audits"
+        subtitle="Historial Step Functions con seguimiento live del pipeline."
+      >
+        <button
+          type="button"
+          class="ta-btn"
+          [disabled]="audit.starting() || !tenant.activeAccountId() || audit.isRunning()"
+          (click)="start()"
+        >
+          {{ audit.starting() ? 'Iniciando…' : 'Nuevo audit' }}
         </button>
-      </div>
+        <button
+          type="button"
+          class="ta-btn ta-btn--ghost"
+          [disabled]="audit.busy()"
+          (click)="refresh()"
+        >
+          {{ audit.busy() ? 'Cargando…' : 'Actualizar' }}
+        </button>
+      </ta-page-header>
 
-      <div class="ta-card" style="display:grid;gap:0.75rem;margin-bottom:1rem">
-        <div class="ta-meta">
-          Realtime: {{ realtime.connectionState() }}
-          @if (polling()) {
-            · polling activo
+      @if (audit.error()) {
+        <div class="ta-error" style="margin-bottom:1rem">{{ audit.error() }}</div>
+      }
+
+      <div class="ta-audits-layout">
+        <div class="ta-card">
+          <ta-audit-progress
+            [stages]="audit.stages()"
+            [percent]="audit.progressPercent()"
+            [live]="audit.isRunning()"
+            [title]="selectedTitle()"
+            eyebrow="Pipeline live"
+          />
+          @if (selected(); as sel) {
+            <div class="ta-audits-meta">
+              <div><span class="ta-field__label">Status</span><ta-status-badge [status]="sel.status" /></div>
+              <div>
+                <span class="ta-field__label">Score</span>
+                <strong>{{ sel.globalScore }}</strong>
+              </div>
+              <div>
+                <span class="ta-field__label">Findings</span>
+                <strong>{{ sel.findingCount }}</strong>
+              </div>
+              <div>
+                <span class="ta-field__label">CRITICAL / HIGH</span>
+                <strong>{{ sel.criticalCount }} / {{ sel.highCount }}</strong>
+              </div>
+              <div>
+                <span class="ta-field__label">Ahorro $/mes</span>
+                <strong>{{ sel.estimatedMonthlySavingsUsd | number: '1.0-0' }}</strong>
+              </div>
+            </div>
           }
         </div>
-        @if (error()) {
-          <div class="ta-error">{{ error() }}</div>
-        }
-        @if (realtime.auditStatus(); as st) {
-          <div class="ta-info">
-            Live: {{ st.auditId.slice(0, 8) }}… · <strong>{{ st.status }}</strong> · score
-            {{ st.globalScore }} · CRITICAL {{ st.criticalCount }} / HIGH {{ st.highCount }}
-          </div>
-        }
-      </div>
 
-      <div class="ta-card">
-        <ul class="ta-account-list">
-          @for (a of audits(); track a.auditId) {
-            <li>
-              <div>
-                <strong>{{ a.auditId.slice(0, 8) }}…</strong>
-                <div class="ta-meta">
-                  acct {{ a.accountId }} · score {{ a.globalScore }} · USD
-                  {{ a.estimatedMonthlySavingsUsd | number: '1.0-2' }}
+        <div class="ta-card ta-card--flat">
+          <h2 class="ta-card__title">Historial</h2>
+          <ul class="ta-account-list">
+            @for (a of audit.audits(); track a.auditId) {
+              <li
+                class="ta-audit-row"
+                [class.ta-audit-row--active]="a.auditId === audit.activeAuditId()"
+                (click)="select(a.auditId)"
+              >
+                <div>
+                  <strong>{{ a.auditId.slice(0, 8) }}…</strong>
+                  <div class="ta-meta">
+                    {{ a.accountId }} · {{ a.createdAtIso | date: 'short' }}
+                  </div>
                 </div>
-              </div>
-              <div style="display:flex;gap:0.5rem;align-items:center">
-                <span
-                  class="ta-chip"
-                  [class.ta-chip--ok]="a.status === 'completed'"
-                  [class.ta-chip--warn]="!isTerminal(a.status)"
-                >
-                  {{ a.status }}
-                </span>
-                <button type="button" class="ta-btn ta-btn--ghost ta-btn--sm" (click)="select(a)">
-                  Ver
-                </button>
-              </div>
-            </li>
-          } @empty {
-            <li class="ta-meta">
-              Sin audits en lista. Pulsá «Actualizar lista» (el último Step Functions ya terminó
-              SUCCEEDED).
-            </li>
-          }
-        </ul>
+                <div style="display:flex;gap:0.5rem;align-items:center">
+                  <span class="ta-meta">{{ a.globalScore }}</span>
+                  <ta-status-badge [status]="a.status" />
+                </div>
+              </li>
+            } @empty {
+              <li class="ta-meta">Todavía no hay audits. Iniciá uno desde aquí o el Dashboard.</li>
+            }
+          </ul>
+        </div>
       </div>
 
-      @if (selected(); as sel) {
-        <div class="ta-card" style="margin-top:1rem;display:grid;gap:0.5rem">
-          <h2 style="margin:0;font-size:1.1rem">Audit {{ sel.auditId }}</h2>
-          <div class="ta-meta">Status: {{ sel.status }}</div>
-          <div class="ta-meta">
-            Findings {{ sel.findingCount }} · CRITICAL {{ sel.criticalCount }} · HIGH
-            {{ sel.highCount }}
-          </div>
-          <div class="ta-meta">
-            Pillars — sec {{ sel.pillarScores.security }} · cost
-            {{ sel.pillarScores.costOptimization }} · rel {{ sel.pillarScores.reliability }}
-          </div>
-          @if (findings().length) {
-            <ul style="margin:0;padding-left:1.1rem">
-              @for (f of findings(); track f.findingId) {
-                <li>
-                  <strong>[{{ f.severity }}]</strong> {{ f.title }}
-                  <span class="ta-meta"> — {{ f.domain }}/{{ f.category }}</span>
-                </li>
-              }
-            </ul>
-          }
+      @if (audit.findings().length) {
+        <div class="ta-card" style="margin-top:1rem">
+          <h2 class="ta-card__title">Findings del audit seleccionado</h2>
+          <ul class="ta-finding-list">
+            @for (f of audit.findings().slice(0, 40); track f.findingId) {
+              <li>
+                <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
+                <div>
+                  <strong>{{ f.title }}</strong>
+                  <div class="ta-meta">
+                    {{ f.domain }}/{{ f.category }} · {{ f.resourceId }} ·
+                    {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }} USD/mes
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
         </div>
       }
     </section>
   `,
 })
-export class AuditsPageComponent implements OnInit, OnDestroy {
-  private readonly auth = inject(AuthService);
-  private readonly scanService = inject(ScanService);
-  readonly realtime = inject(AppSyncRealtimeService);
+export class AuditsPageComponent implements OnInit {
+  readonly audit = inject(AuditLiveService);
+  readonly tenant = inject(TenantContextService);
 
-  readonly audits = signal<AuditJobView[]>([]);
-  readonly selected = signal<AuditJobView | null>(null);
-  readonly findings = signal<AuditFindingView[]>([]);
-  readonly busy = signal(false);
-  readonly error = signal<string | null>(null);
-  readonly polling = signal(false);
-
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  readonly selected = computed(() => this.audit.activeAudit());
 
   ngOnInit(): void {
-    const tenantId = this.auth.tenantId();
-    if (tenantId) this.realtime.ensureConnected(tenantId);
-    void this.refresh();
+    void this.audit.bootstrap();
   }
 
-  ngOnDestroy(): void {
-    this.stopPolling();
+  selectedTitle(): string {
+    const a = this.selected();
+    if (!a) return 'Sin ejecución seleccionada';
+    return `Audit ${a.auditId.slice(0, 8)}…`;
   }
 
-  isTerminal(status: string): boolean {
-    return TERMINAL.has(status);
+  select(auditId: string): void {
+    this.audit.selectAudit(auditId);
+  }
+
+  async start(): Promise<void> {
+    await this.audit.startAudit();
   }
 
   async refresh(): Promise<void> {
-    this.busy.set(true);
-    this.error.set(null);
-    try {
-      const list = await this.scanService.listAudits({ limit: 30 });
-      this.audits.set(list);
-      const running = list.find((a) => !TERMINAL.has(a.status));
-      if (running) {
-        this.startPolling();
-        const tenantId = this.auth.tenantId();
-        if (tenantId) {
-          this.realtime.ensureConnected(tenantId, { auditId: running.auditId });
-        }
-      } else {
-        this.stopPolling();
-      }
-
-      const sel = this.selected();
-      if (sel) {
-        const updated = list.find((a) => a.auditId === sel.auditId);
-        if (updated) this.selected.set(updated);
-      }
-    } catch (err) {
-      this.error.set(err instanceof Error ? err.message : String(err));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  async select(audit: AuditJobView): Promise<void> {
-    this.selected.set(audit);
-    const tenantId = this.auth.tenantId();
-    if (tenantId) {
-      this.realtime.ensureConnected(tenantId, { auditId: audit.auditId });
-    }
-    try {
-      this.findings.set(await this.scanService.listAuditFindings(audit.auditId));
-    } catch (err) {
-      this.error.set(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  private startPolling(): void {
-    if (this.pollTimer) return;
-    this.polling.set(true);
-    this.pollTimer = setInterval(() => {
-      void this.refresh();
-    }, 5000);
-  }
-
-  private stopPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-    this.polling.set(false);
+    await this.audit.refreshAudits();
   }
 }

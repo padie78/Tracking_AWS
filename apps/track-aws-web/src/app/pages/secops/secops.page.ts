@@ -7,44 +7,34 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import {
-  AuditFindingView,
-  AuditJobView,
-  ScanService,
-} from '../../services/scan.service';
+import { AuditLiveService } from '../../core/audit/audit-live.service';
+import { PageHeaderComponent } from '../../ui/layout/page-header.component';
+import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
 import { severityPieOption } from '../../ui/charts/chart-options';
+
+type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
 
 @Component({
   standalone: true,
   selector: 'app-secops-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule, DecimalPipe, TaEchartComponent],
+  imports: [DecimalPipe, PageHeaderComponent, StatusBadgeComponent, TaEchartComponent],
   template: `
     <section class="ta-page ta-page--wide">
-      <div class="ta-page__head">
-        <div>
-          <h1>SecOps</h1>
-          <p>Findings Prowler (CIS / IAM / network / storage) del audit seleccionado.</p>
-        </div>
-        <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="useLatest()">
-          {{ busy() ? 'Cargando…' : 'Último audit' }}
+      <ta-page-header
+        eyebrow="Security"
+        title="SecOps"
+        subtitle="Superficie de ataque: IAM, network abierta, storage público. Qué puede ser explotado y cómo cerrarlo."
+      >
+        <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="refresh()">
+          {{ busy() ? 'Cargando…' : 'Actualizar' }}
         </button>
-      </div>
+      </ta-page-header>
 
-      <div class="ta-card" style="display:grid;gap:0.75rem;margin-bottom:1rem">
-        <label>
-          Audit ID
-          <input name="auditId" [(ngModel)]="auditId" placeholder="uuid del audit" />
-        </label>
-        <button type="button" class="ta-btn" [disabled]="busy() || !auditId.trim()" (click)="load()">
-          Cargar findings SecOps
-        </button>
-        @if (error()) {
-          <div class="ta-error">{{ error() }}</div>
-        }
-      </div>
+      @if (error()) {
+        <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
+      }
 
       <div class="ta-kpi-grid">
         <div class="ta-kpi">
@@ -56,29 +46,60 @@ import { severityPieOption } from '../../ui/charts/chart-options';
           <div class="ta-kpi__value ta-kpi__value--warn">{{ counts().HIGH }}</div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Total SecOps</div>
+          <div class="ta-kpi__label">Attack findings</div>
           <div class="ta-kpi__value">{{ findings().length }}</div>
         </div>
+        <div class="ta-kpi">
+          <div class="ta-kpi__label">Audit</div>
+          <div class="ta-kpi__value" style="font-size:0.95rem">
+            @if (audit.activeAudit(); as a) {
+              <ta-status-badge [status]="a.status" />
+            } @else {
+              —
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="ta-tabs" style="margin-top:1rem">
+        @for (t of tabs; track t.id) {
+          <button
+            type="button"
+            class="ta-tabs__btn"
+            [class.active]="tab() === t.id"
+            (click)="tab.set(t.id)"
+          >
+            {{ t.label }}
+          </button>
+        }
       </div>
 
       <div class="ta-card" style="margin-top:1rem">
         <h2 class="ta-card__title">Distribución por severidad</h2>
-        <ta-echart [options]="pieOpt()" height="260px" />
+        <ta-echart [options]="pieOpt()" height="240px" />
       </div>
 
       <div class="ta-card" style="margin-top:1rem">
+        <h2 class="ta-card__title">Qué puede ser atacado / misconfigurations</h2>
         <ul class="ta-finding-list">
-          @for (f of findings(); track f.findingId) {
+          @for (f of filtered(); track f.findingId) {
             <li>
               <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
               <div>
                 <strong>{{ f.title }}</strong>
-                <div class="ta-meta">{{ f.checkId }} · {{ f.region }} · {{ f.resourceId }}</div>
-                <div class="ta-meta">{{ f.rationale }}</div>
+                <div class="ta-meta">
+                  {{ attackBucket(f.category, f.title, f.checkId) }} ·
+                  {{ f.checkId || 'n/a' }} · {{ f.region }} · {{ f.resourceId }}
+                </div>
+                <div class="ta-meta"><strong>Riesgo:</strong> {{ f.rationale }}</div>
+                <div class="ta-meta"><strong>Mitigación:</strong> {{ f.recommendedAction }}</div>
               </div>
             </li>
           } @empty {
-            <li class="ta-meta">Sin findings SecOps.</li>
+            <li class="ta-meta">
+              Sin findings SecOps. Si el audit corrió, Prowler no subió FAIL o falló el branch —
+              el agregador ahora corre checks IAM/SG/S3 de respaldo. Ejecutá un audit nuevo tras el deploy.
+            </li>
           }
         </ul>
       </div>
@@ -86,12 +107,34 @@ import { severityPieOption } from '../../ui/charts/chart-options';
   `,
 })
 export class SecopsPageComponent implements OnInit {
-  private readonly scanService = inject(ScanService);
-
-  auditId = '';
-  readonly findings = signal<AuditFindingView[]>([]);
+  readonly audit = inject(AuditLiveService);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
+  readonly tab = signal<AttackTab>('all');
+
+  readonly tabs: Array<{ id: AttackTab; label: string }> = [
+    { id: 'all', label: 'Todos' },
+    { id: 'iam', label: 'IAM / identidad' },
+    { id: 'network', label: 'Network' },
+    { id: 'storage', label: 'Storage' },
+    { id: 'other', label: 'Otros' },
+  ];
+
+  readonly findings = computed(() =>
+    this.audit
+      .findings()
+      .filter((f) => f.domain === 'secops')
+      .slice()
+      .sort((a, b) => severityRank(a.severity) - severityRank(b.severity)),
+  );
+
+  readonly filtered = computed(() => {
+    const t = this.tab();
+    if (t === 'all') return this.findings();
+    return this.findings().filter(
+      (f) => this.attackBucket(f.category, f.title, f.checkId) === t,
+    );
+  });
 
   readonly counts = computed(() => {
     const c = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
@@ -103,41 +146,44 @@ export class SecopsPageComponent implements OnInit {
 
   readonly pieOpt = computed(() => severityPieOption(this.counts()));
 
+  attackBucket(
+    category: string,
+    title: string,
+    checkId: string | null,
+  ): AttackTab {
+    const hay = `${category} ${title} ${checkId ?? ''}`.toLowerCase();
+    if (/iam|mfa|password|root|identity|user/.test(hay)) return 'iam';
+    if (/sg|security.group|0\.0\.0\.0|network|port|ssh|rdp/.test(hay)) return 'network';
+    if (/s3|bucket|storage|public.access/.test(hay)) return 'storage';
+    return 'other';
+  }
+
   ngOnInit(): void {
-    void this.useLatest();
+    void this.refresh();
   }
 
-  async useLatest(): Promise<void> {
+  async refresh(): Promise<void> {
     this.busy.set(true);
     this.error.set(null);
     try {
-      const list: AuditJobView[] = await this.scanService.listAudits({ limit: 1 });
-      const latest = list[0];
-      if (!latest) {
-        this.error.set('No hay audits. Ejecutá startAudit desde Dashboard.');
-        return;
-      }
-      this.auditId = latest.auditId;
-      await this.load();
-    } catch (err) {
-      this.error.set(err instanceof Error ? err.message : String(err));
-      this.busy.set(false);
-    }
-  }
-
-  async load(): Promise<void> {
-    const auditId = this.auditId.trim();
-    if (!auditId) return;
-    this.busy.set(true);
-    this.error.set(null);
-    try {
-      this.findings.set(
-        await this.scanService.listAuditFindings(auditId, 'secops'),
-      );
+      await this.audit.refreshAudits();
+      const id = this.audit.activeAudit()?.auditId;
+      if (id) await this.audit.refreshFindings(id);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {
       this.busy.set(false);
     }
   }
+}
+
+function severityRank(severity: string): number {
+  const map: Record<string, number> = {
+    CRITICAL: 0,
+    HIGH: 1,
+    MEDIUM: 2,
+    LOW: 3,
+    INFO: 4,
+  };
+  return map[severity] ?? 9;
 }

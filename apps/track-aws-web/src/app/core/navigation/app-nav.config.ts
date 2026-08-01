@@ -62,9 +62,9 @@ const ADMIN_SUBNAV_ITEMS: AppSubnavItem[] = [
   },
   {
     id: 'reports',
-    label: 'Reportes',
-    title: 'Reportes',
-    description: 'Executive summaries del último audit',
+    label: 'Informe',
+    title: 'Informe de auditoría',
+    description: 'Inventario, riesgos, ahorro y reporte IA',
     route: '/tabs/reports',
     icon: 'reports',
   },

@@ -2,6 +2,7 @@ import {
   EnqueueInventoryScanUseCase,
   GenerateSavingsDossierUseCase,
   GetAuditUseCase,
+  GetAuditReportUseCase,
   GetSavingsDossierUseCase,
   LinkAwsAccountUseCase,
   ListAlertChannelsUseCase,
@@ -17,6 +18,7 @@ import {
   AppSyncAuditEventPublisherAdapter,
   AppSyncDossierEventPublisherAdapter,
   AssumeRoleAwsInventoryAdapter,
+  AuditReportGenerator,
   BedrockDossierGeneratorAdapter,
   ConsoleLogger,
   DynamoDbAlertChannelRepository,
@@ -69,6 +71,10 @@ export const getAudits = new GetAuditUseCase(auditJobRepository);
 
 export const listAuditFindings = new ListAuditFindingsUseCase(
   auditFindingRepository,
+);
+
+export const getAuditReport = new GetAuditReportUseCase(
+  new AuditReportGenerator(),
 );
 
 export const linkAwsAccount = new LinkAwsAccountUseCase({

@@ -150,9 +150,13 @@ resource "aws_sfn_state_machine" "audit" {
                   finops = {
                     findings = []
                     inventorySummary = {
-                      ec2Count = 0
-                      ebsCount = 0
-                      eipCount = 0
+                      ec2Count           = 0
+                      ebsCount           = 0
+                      eipCount           = 0
+                      runningEc2Count    = 0
+                      stoppedEc2Count    = 0
+                      unattachedEbsCount = 0
+                      idleEipCount       = 0
                     }
                     warning = "cloudquery_branch_failed"
                   }
@@ -262,7 +266,7 @@ resource "aws_sfn_state_machine" "audit" {
       AggregateAudit = {
         Type           = "Task"
         Resource       = "arn:aws:states:::lambda:invoke"
-        TimeoutSeconds = 120
+        TimeoutSeconds = 180
         Parameters = {
           FunctionName = var.aggregate_audit_arn
           Payload = {
@@ -270,6 +274,9 @@ resource "aws_sfn_state_machine" "audit" {
             "auditId.$"       = "$.resolve.payload.auditId"
             "accountId.$"     = "$.resolve.payload.accountId"
             "correlationId.$" = "$.resolve.payload.correlationId"
+            "roleArn.$"       = "$.resolve.payload.roleArn"
+            "externalId.$"    = "$.resolve.payload.externalId"
+            "regions.$"       = "$.resolve.payload.regions"
             "finops.$"        = "$.engines[0].finops"
             "secops.$"        = "$.engines[1].secops"
           }

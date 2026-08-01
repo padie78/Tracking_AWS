@@ -267,7 +267,7 @@ resource "aws_lambda_function" "aggregate_audit" {
   handler          = "index.handler"
   filename         = data.archive_file.bootstrap.output_path
   source_code_hash = data.archive_file.bootstrap.output_base64sha256
-  timeout          = 120
+  timeout          = 180
   memory_size      = 512
   architectures    = ["arm64"]
 
@@ -275,6 +275,7 @@ resource "aws_lambda_function" "aggregate_audit" {
     variables = merge(local.core_env, local.audit_env, {
       APPSYNC_ENDPOINT = "https://placeholder-will-be-patched"
       APPSYNC_API_KEY  = "placeholder"
+      BEDROCK_MODEL_ID = var.bedrock_model_id
     })
   }
 

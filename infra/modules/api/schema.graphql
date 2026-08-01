@@ -6,6 +6,7 @@ type Query {
   listAwsAccounts: [AwsAccountLink!]! @aws_cognito_user_pools
   listAudits(auditId: ID, limit: Int): [AuditJob!]! @aws_cognito_user_pools
   listAuditFindings(auditId: ID!, domain: String): [AuditFinding!]! @aws_cognito_user_pools
+  getAuditReport(auditId: ID!): AuditReport @aws_cognito_user_pools
   listAlertChannels: [AlertChannel!]! @aws_cognito_user_pools
 }
 
@@ -98,6 +99,33 @@ type AuditFinding @aws_cognito_user_pools {
   estimatedMonthlySavingsUsd: Float!
   checkId: String
   createdAtIso: AWSDateTime!
+}
+
+type InventorySummary @aws_cognito_user_pools {
+  ec2Count: Int!
+  ebsCount: Int!
+  eipCount: Int!
+  runningEc2Count: Int!
+  stoppedEc2Count: Int!
+  unattachedEbsCount: Int!
+  idleEipCount: Int!
+}
+
+type AuditReport @aws_cognito_user_pools {
+  tenantId: ID!
+  auditId: ID!
+  reportId: ID!
+  accountId: String!
+  markdownBody: String!
+  aiGenerated: Boolean!
+  inventorySummary: InventorySummary
+  s3Key: String!
+  createdAtIso: AWSDateTime!
+  globalScore: Float!
+  estimatedMonthlySavingsUsd: Float!
+  findingCount: Int!
+  criticalCount: Int!
+  highCount: Int!
 }
 
 input StartScanInput {

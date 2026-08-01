@@ -110,6 +110,31 @@ export interface AuditFindingView {
   createdAtIso: string;
 }
 
+export interface AuditReportView {
+  tenantId: string;
+  auditId: string;
+  reportId: string;
+  accountId: string;
+  markdownBody: string;
+  aiGenerated: boolean;
+  inventorySummary: {
+    ec2Count: number;
+    ebsCount: number;
+    eipCount: number;
+    runningEc2Count: number;
+    stoppedEc2Count: number;
+    unattachedEbsCount: number;
+    idleEipCount: number;
+  } | null;
+  s3Key: string;
+  createdAtIso: string;
+  globalScore: number;
+  estimatedMonthlySavingsUsd: number;
+  findingCount: number;
+  criticalCount: number;
+  highCount: number;
+}
+
 export interface AwsAccountLinkView {
   accountId: string;
   displayName: string;
@@ -300,6 +325,35 @@ const LIST_AUDIT_FINDINGS = /* GraphQL */ `
   }
 `;
 
+const GET_AUDIT_REPORT = /* GraphQL */ `
+  query GetAuditReport($auditId: ID!) {
+    getAuditReport(auditId: $auditId) {
+      tenantId
+      auditId
+      reportId
+      accountId
+      markdownBody
+      aiGenerated
+      inventorySummary {
+        ec2Count
+        ebsCount
+        eipCount
+        runningEc2Count
+        stoppedEc2Count
+        unattachedEbsCount
+        idleEipCount
+      }
+      s3Key
+      createdAtIso
+      globalScore
+      estimatedMonthlySavingsUsd
+      findingCount
+      criticalCount
+      highCount
+    }
+  }
+`;
+
 const LIST_FINDINGS_BY_SCAN = /* GraphQL */ `
   query ListFindingsByScan($scanId: ID!) {
     listFindingsByScan(scanId: $scanId) {
@@ -405,6 +459,16 @@ export class ScanService {
       ...authOptions,
     })) as { data?: { listAuditFindings?: AuditFindingView[] } };
     return result.data?.listAuditFindings ?? [];
+  }
+
+  async getAuditReport(auditId: string): Promise<AuditReportView | null> {
+    const authOptions = await authenticatedAppsyncOptions();
+    const result = (await this.client.graphql({
+      query: GET_AUDIT_REPORT,
+      variables: { auditId },
+      ...authOptions,
+    })) as { data?: { getAuditReport?: AuditReportView | null } };
+    return result.data?.getAuditReport ?? null;
   }
 
   async startScan(input: {

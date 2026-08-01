@@ -3,6 +3,7 @@ import {
   enqueueInventoryScan,
   generateSavingsDossier,
   getAudits,
+  getAuditReport,
   getSavingsDossier,
   linkAwsAccount,
   listAlertChannels,
@@ -66,6 +67,10 @@ type ResolverArgs =
         auditId: string;
         domain?: 'finops' | 'secops' | 'architecture' | null;
       };
+    }
+  | {
+      fieldName: 'getAuditReport';
+      args: { auditId: string };
     }
   | { fieldName: 'listFindingsByScan'; args: { scanId: string } }
   | {
@@ -166,6 +171,12 @@ async function dispatch(
         tenantId,
         auditId: op.args.auditId,
         domain: op.args.domain ?? undefined,
+      });
+
+    case 'getAuditReport':
+      return getAuditReport.execute({
+        tenantId,
+        auditId: op.args.auditId,
       });
 
     case 'listFindingsByScan':

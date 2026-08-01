@@ -36,7 +36,8 @@ variable "google_client_secret" {
 }
 
 locals {
-  cognito_domain_prefix = var.cognito_domain_prefix != "" ? var.cognito_domain_prefix : local.name_prefix
+  # Cognito rechaza el substring reservado "aws" (p.ej. track-aws-dev).
+  cognito_domain_prefix = var.cognito_domain_prefix != "" ? var.cognito_domain_prefix : "track-${var.environment}-${data.aws_caller_identity.current.account_id}"
 
   cognito_oauth_callback_urls = distinct(concat(
     var.cognito_oauth_callback_urls,

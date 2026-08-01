@@ -51,10 +51,18 @@ data "aws_iam_policy_document" "sfn_invoke" {
     ]
   }
 
+  # ecs:runTask.sync crea managed rules de EventBridge
   statement {
-    sid       = "EcsEventsForSync"
-    effect    = "Allow"
-    actions   = ["events:PutTargets", "events:PutRule", "events:DescribeRule"]
+    sid    = "EcsEventsForSync"
+    effect = "Allow"
+    actions = [
+      "events:PutRule",
+      "events:DeleteRule",
+      "events:DescribeRule",
+      "events:PutTargets",
+      "events:RemoveTargets",
+      "events:TagResource",
+    ]
     resources = ["*"]
   }
 }
@@ -80,6 +88,9 @@ resource "aws_sfn_state_machine" "audit" {
   name     = "${var.name_prefix}-audit"
   role_arn = aws_iam_role.sfn.arn
   tags     = var.tags
+
+  # Evita CreateStateMachine antes de que el rol tenga events:* (managed-rule)
+  depends_on = [aws_iam_role_policy.sfn_invoke]
 
   definition = jsonencode({
     Comment = "Track_AWS: resolve → Parallel(CloudQuery Lambda ∥ Prowler Fargate) → aggregate"

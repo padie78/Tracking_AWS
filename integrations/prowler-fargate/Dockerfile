@@ -1,5 +1,6 @@
 # Official Prowler image + Track_AWS entrypoint (AssumeRole → scan → S3)
-FROM prowlercloud/prowler:4.5.0
+# Pin a release tag (4.5.0 ya no existe en Docker Hub; serie actual = 5.x)
+FROM prowlercloud/prowler:5.36.0
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \

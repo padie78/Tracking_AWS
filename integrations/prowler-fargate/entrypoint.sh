@@ -36,7 +36,7 @@ unset AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || true
 IFS=',' read -r -a REGION_LIST <<< "${REGIONS}"
 
 echo "[prowler-fargate] Running Prowler regions=${REGIONS}"
-# Prowler 4.x CLI — JSON-OCSF / json-asff según versión; normalizamos después
+# Prowler 5.x CLI — JSON-OCSF; normalizamos después
 set +e
 prowler aws \
   --region "${REGION_LIST[@]}" \

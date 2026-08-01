@@ -1,12 +1,14 @@
 import {
   EnqueueInventoryScanUseCase,
   GenerateSavingsDossierUseCase,
+  GetAccountInventoryUseCase,
   GetAuditUseCase,
   GetAuditReportUseCase,
   GetSavingsDossierUseCase,
   LinkAwsAccountUseCase,
   ListAlertChannelsUseCase,
   ListAuditFindingsUseCase,
+  ListAuditInventoryUseCase,
   ListAwsAccountsUseCase,
   ListFindingsByScanUseCase,
   StartAuditUseCase,
@@ -23,6 +25,7 @@ import {
   ConsoleLogger,
   DynamoDbAlertChannelRepository,
   DynamoDbAuditFindingRepository,
+  DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
   DynamoDbAwsAccountLinkRepository,
   DynamoDbDossierRepository,
@@ -74,6 +77,18 @@ export const listAuditFindings = new ListAuditFindingsUseCase(
 );
 
 export const getAuditReport = new GetAuditReportUseCase(
+  new AuditReportGenerator(),
+);
+
+const auditInventoryRepository = new DynamoDbAuditInventoryRepository();
+
+export const getAccountInventory = new GetAccountInventoryUseCase(
+  accountLinkRepository,
+  awsInventory,
+);
+
+export const listAuditInventory = new ListAuditInventoryUseCase(
+  auditInventoryRepository,
   new AuditReportGenerator(),
 );
 

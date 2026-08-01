@@ -7,12 +7,12 @@ import {
 import type {
   AwsInventorySnapshot,
   IAwsInventoryPort,
+  InventoryResourceView,
 } from '@track-aws/application';
 
 /**
  * Motor de inventario estilo CloudQuery en Lambda:
- * AssumeRole → snapshot efímero → reglas FinOps (rightsizing / modernización / huérfanos).
- * No persiste tablas crudas; emite findings tipados.
+ * AssumeRole → snapshot → recursos tipados + findings FinOps.
  */
 export class CloudQueryInventoryEngine {
   constructor(private readonly inventory: IAwsInventoryPort) {}
@@ -27,6 +27,7 @@ export class CloudQueryInventoryEngine {
       unattachedEbsCount: number;
       idleEipCount: number;
     };
+    resources: InventoryResourceView[];
     finopsFindings: FinOpsFinding[];
     auditFindings: AuditFinding[];
   }> {
@@ -38,6 +39,7 @@ export class CloudQueryInventoryEngine {
       regions: payload.regions,
     });
 
+    const resources = snapshotToResources(snapshot);
     const finops = this.analyzeFinOps(snapshot);
     const auditFindings = finops.map((f) =>
       AuditFinding.create({
@@ -70,6 +72,7 @@ export class CloudQueryInventoryEngine {
         unattachedEbsCount: snapshot.ebsVolumes.filter((v) => !v.attached).length,
         idleEipCount: snapshot.elasticIps.filter((e) => !e.associated).length,
       },
+      resources,
       finopsFindings: finops,
       auditFindings,
     };
@@ -150,4 +153,44 @@ export class CloudQueryInventoryEngine {
 
     return out;
   }
+}
+
+export function snapshotToResources(
+  snapshot: AwsInventorySnapshot,
+): InventoryResourceView[] {
+  const resources: InventoryResourceView[] = [];
+  for (const inst of snapshot.ec2Instances) {
+    resources.push({
+      resourceType: 'ec2',
+      resourceId: inst.instanceId,
+      resourceArn: inst.instanceArn,
+      region: inst.region,
+      state: inst.state,
+      detail: `${inst.instanceType} · CPU ${inst.utilization.avgCpuPercent}% (14d)`,
+      estimatedMonthlyCostUsd: inst.estimatedMonthlyCostUsd,
+    });
+  }
+  for (const vol of snapshot.ebsVolumes) {
+    resources.push({
+      resourceType: 'ebs',
+      resourceId: vol.volumeId,
+      resourceArn: vol.volumeArn,
+      region: vol.region,
+      state: vol.attached ? 'attached' : 'unattached',
+      detail: `${vol.sizeGb} GiB`,
+      estimatedMonthlyCostUsd: vol.estimatedMonthlyCostUsd,
+    });
+  }
+  for (const eip of snapshot.elasticIps) {
+    resources.push({
+      resourceType: 'eip',
+      resourceId: eip.allocationId,
+      resourceArn: `arn:aws:ec2:${eip.region}:${snapshot.accountId}:elastic-ip/${eip.allocationId}`,
+      region: eip.region,
+      state: eip.associated ? 'associated' : 'idle',
+      detail: eip.publicIp,
+      estimatedMonthlyCostUsd: eip.estimatedMonthlyCostUsd,
+    });
+  }
+  return resources;
 }

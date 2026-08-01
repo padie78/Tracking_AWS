@@ -3,6 +3,7 @@ import type { UserRole } from '../auth/user-role';
 export type AppNavIcon =
   | 'dashboard'
   | 'audits'
+  | 'inventory'
   | 'finops'
   | 'secops'
   | 'architecture'
@@ -35,6 +36,14 @@ const ADMIN_SUBNAV_ITEMS: AppSubnavItem[] = [
     description: 'Estado, scores y findings por ejecución',
     route: '/tabs/audits',
     icon: 'audits',
+  },
+  {
+    id: 'inventory',
+    label: 'Inventario',
+    title: 'Inventario AWS',
+    description: 'EC2, EBS y Elastic IP de la cuenta',
+    route: '/tabs/inventory',
+    icon: 'inventory',
   },
   {
     id: 'finops',
@@ -86,6 +95,7 @@ const VIEWER_SUBNAV_ITEMS: AppSubnavItem[] = ADMIN_SUBNAV_ITEMS.filter(
   (item) =>
     item.id === 'dashboard' ||
     item.id === 'audits' ||
+    item.id === 'inventory' ||
     item.id === 'reports',
 );
 
@@ -104,6 +114,7 @@ export function navFocusForRole(role: UserRole): string {
 export const NAV_ICON_GLYPH: Record<AppNavIcon, string> = {
   dashboard: '◈',
   audits: '☰',
+  inventory: '▦',
   finops: '$',
   secops: '⬡',
   architecture: '⬢',

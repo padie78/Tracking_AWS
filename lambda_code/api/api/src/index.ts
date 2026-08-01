@@ -2,12 +2,14 @@ import type { AppSyncResolverEvent, AppSyncResolverHandler } from 'aws-lambda';
 import {
   enqueueInventoryScan,
   generateSavingsDossier,
+  getAccountInventory,
   getAudits,
   getAuditReport,
   getSavingsDossier,
   linkAwsAccount,
   listAlertChannels,
   listAuditFindings,
+  listAuditInventory,
   listAwsAccounts,
   listFindingsByScan,
   startAudit,
@@ -70,6 +72,14 @@ type ResolverArgs =
     }
   | {
       fieldName: 'getAuditReport';
+      args: { auditId: string };
+    }
+  | {
+      fieldName: 'getAccountInventory';
+      args: { accountId: string };
+    }
+  | {
+      fieldName: 'listAuditInventory';
       args: { auditId: string };
     }
   | { fieldName: 'listFindingsByScan'; args: { scanId: string } }
@@ -175,6 +185,18 @@ async function dispatch(
 
     case 'getAuditReport':
       return getAuditReport.execute({
+        tenantId,
+        auditId: op.args.auditId,
+      });
+
+    case 'getAccountInventory':
+      return getAccountInventory.execute({
+        tenantId,
+        accountId: op.args.accountId,
+      });
+
+    case 'listAuditInventory':
+      return listAuditInventory.execute({
         tenantId,
         auditId: op.args.auditId,
       });

@@ -9,6 +9,7 @@ export * from './lib/repositories/dynamodb-finops.repository';
 export * from './lib/repositories/dynamodb-dossier.repository';
 export * from './lib/repositories/dynamodb-aws-account-link.repository';
 export * from './lib/repositories/dynamodb-audit.repository';
+export * from './lib/repositories/dynamodb-audit-inventory.repository';
 export * from './lib/orchestration/step-functions-audit-orchestrator.adapter';
 export * from './lib/engines/cloudquery-inventory.engine';
 export * from './lib/engines/prowler-security.engine';

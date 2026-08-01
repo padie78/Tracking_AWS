@@ -3,34 +3,38 @@
   --ta-font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --ta-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  --ta-bg: #0a101c;
-  --ta-bg-elevated: #111827;
-  --ta-bg-panel: #162033;
-  --ta-bg-input: #0d1524;
-  --ta-border: #2a3650;
-  --ta-border-strong: #3d4d6b;
-  --ta-text: #eef3fb;
-  --ta-text-muted: #93a1bb;
-  --ta-accent: #2ec4b6;
-  --ta-accent-hover: #3dd9ca;
-  --ta-accent-2: #4f8cff;
-  --ta-danger: #f07178;
-  --ta-warning: #e6b450;
-  --ta-success: #7fd99a;
-  --ta-focus: rgba(46, 196, 182, 0.45);
+  /* OpenRouter-like product chrome: light, airy, hairline borders */
+  --ta-bg: #f7f7f8;
+  --ta-bg-elevated: #ffffff;
+  --ta-bg-panel: #f3f4f6;
+  --ta-bg-input: #ffffff;
+  --ta-border: #e5e7eb;
+  --ta-border-strong: #d1d5db;
+  --ta-text: #111827;
+  --ta-text-muted: #6b7280;
+  --ta-accent: #0d9488;
+  --ta-accent-hover: #0f766e;
+  --ta-accent-2: #2563eb;
+  --ta-danger: #dc2626;
+  --ta-warning: #d97706;
+  --ta-success: #059669;
+  --ta-focus: rgba(13, 148, 136, 0.28);
+  --ta-sidebar: #ffffff;
+  --ta-header: rgba(255, 255, 255, 0.92);
 
   --ta-radius: 12px;
   --ta-radius-sm: 8px;
+  --ta-radius-pill: 999px;
   --ta-space-1: 0.25rem;
   --ta-space-2: 0.5rem;
   --ta-space-3: 0.75rem;
   --ta-space-4: 1rem;
   --ta-space-5: 1.5rem;
   --ta-space-6: 2rem;
-  --ta-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  --ta-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.04);
 
-  --ion-color-primary: #2ec4b6;
-  --ion-color-primary-contrast: #0a101c;
+  --ion-color-primary: #0d9488;
+  --ion-color-primary-contrast: #ffffff;
   --ion-background-color: var(--ta-bg);
   --ion-text-color: var(--ta-text);
   --ion-toolbar-background: var(--ta-bg-elevated);

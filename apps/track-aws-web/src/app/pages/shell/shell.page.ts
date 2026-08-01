@@ -39,75 +39,101 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
     StatusBadgeComponent,
   ],
   template: `
-    <div class="ta-shell" [attr.data-role]="auth.userRole()">
-      <aside class="ta-shell__nav">
-        <div class="ta-brand">Track <span>AWS</span></div>
-        <div class="ta-shell__identity">
-          <div class="ta-shell__role">{{ roleLabel(auth.userRole()) }} · {{ navFocus() }}</div>
-          @if (auth.tenantId(); as tid) {
-            <div class="ta-meta">tenant {{ tid }}</div>
-          }
-          <div class="ta-shell__live-row">
-            <span class="ta-dot" [attr.data-state]="audit.connectionState()"></span>
-            <span class="ta-meta">realtime {{ audit.connectionState() }}</span>
+    <div class="ta-shell" [attr.data-role]="auth.userRole()" [class.ta-shell--nav-open]="navOpen()">
+      <header class="ta-header">
+        <div class="ta-header__left">
+          <button
+            type="button"
+            class="ta-btn ta-btn--ghost ta-btn--icon ta-shell__menu-btn"
+            aria-label="Abrir menú"
+            [attr.aria-expanded]="navOpen()"
+            aria-controls="ta-shell-nav"
+            (click)="toggleNav()"
+          >
+            ☰
+          </button>
+          <a routerLink="/tabs/dashboard" class="ta-brand" (click)="closeNav()">
+            Track <span>AWS</span>
+          </a>
+          <span class="ta-header__divider" aria-hidden="true"></span>
+          <div class="ta-workspace">
+            <span class="ta-workspace__label">Workspace</span>
+            <strong>{{ auth.tenantId() || '—' }}</strong>
+            <span class="ta-chip">{{ roleLabel(auth.userRole()) }}</span>
           </div>
         </div>
 
-        <label class="ta-account-picker ta-field">
-          <span class="ta-field__label">Cuenta AWS</span>
-          <select
-            class="ta-select"
-            [ngModel]="tenant.activeAccountId() ?? ''"
-            (ngModelChange)="onAccountChange($event)"
-          >
-            <option value="" disabled>Seleccionar…</option>
-            @for (a of accounts(); track a.accountId) {
-              <option [value]="a.accountId">
-                {{ a.displayName || a.accountId }} ({{ a.status }})
-              </option>
-            }
-          </select>
-        </label>
+        <div class="ta-header__center">
+          <label class="ta-header__search">
+            <span class="ta-header__search-icon" aria-hidden="true">⌕</span>
+            <select
+              class="ta-select ta-select--bare"
+              [ngModel]="tenant.activeAccountId() ?? ''"
+              (ngModelChange)="onAccountChange($event)"
+            >
+              <option value="" disabled>Seleccionar cuenta AWS…</option>
+              @for (a of accounts(); track a.accountId) {
+                <option [value]="a.accountId">
+                  {{ a.displayName || a.accountId }} · {{ a.status }}
+                </option>
+              }
+            </select>
+          </label>
+        </div>
 
-        <ul class="ta-nav-list">
-          @for (item of navItems(); track item.id) {
-            <li>
-              <a [routerLink]="item.route" routerLinkActive="active" [title]="item.description">
-                <span class="ta-nav-list__icon" aria-hidden="true">{{ glyph[item.icon] }}</span>
-                {{ item.label }}
-              </a>
-            </li>
+        <div class="ta-header__right">
+          <div class="ta-shell__live-row">
+            <span class="ta-dot" [attr.data-state]="audit.connectionState()"></span>
+            <span class="ta-meta">{{ audit.connectionState() }}</span>
+          </div>
+          @if (audit.isRunning()) {
+            <a class="ta-live-pill" routerLink="/tabs/audits" (click)="closeNav()">
+              <span class="ta-live-pill__pulse"></span>
+              {{ audit.displayStatus() }} · {{ audit.progressPercent() }}%
+            </a>
+          } @else {
+            @if (audit.activeAudit(); as a) {
+              <ta-status-badge [status]="a.status" />
+            }
           }
-        </ul>
-        <button type="button" class="ta-btn ta-btn--ghost" (click)="logout()">Salir</button>
-      </aside>
+          <ta-notification-center />
+          <button type="button" class="ta-btn ta-btn--ghost ta-btn--sm" (click)="logout()">
+            Salir
+          </button>
+        </div>
+      </header>
 
-      <div class="ta-shell__content">
-        <header class="ta-topbar">
-          <div>
-            <div class="ta-topbar__title">Autonomous Cloud Audit</div>
-            <div class="ta-meta">
-              @if (tenant.activeAccountId(); as acct) {
-                acct {{ acct }}
-              } @else {
-                Sin cuenta activa — configurá en Settings
-              }
-            </div>
-          </div>
-          <div class="ta-topbar__right">
-            @if (audit.isRunning()) {
-              <a class="ta-live-pill" routerLink="/tabs/audits">
-                <span class="ta-live-pill__pulse"></span>
-                Audit {{ audit.displayStatus() }} · {{ audit.progressPercent() }}%
-              </a>
-            } @else {
-              @if (audit.activeAudit(); as a) {
-                <ta-status-badge [status]="a.status" />
-              }
+      <div class="ta-shell__body">
+        <button
+          type="button"
+          class="ta-shell__backdrop"
+          [class.--open]="navOpen()"
+          aria-label="Cerrar menú"
+          (click)="closeNav()"
+        ></button>
+
+        <aside class="ta-shell__nav" [class.--open]="navOpen()" id="ta-shell-nav">
+          <div class="ta-shell__nav-section">{{ navFocus() }}</div>
+          <ul class="ta-nav-list">
+            @for (item of navItems(); track item.id) {
+              <li>
+                <a
+                  [routerLink]="item.route"
+                  routerLinkActive="active"
+                  [title]="item.description"
+                  (click)="closeNav()"
+                >
+                  <span class="ta-nav-list__icon" aria-hidden="true">{{ glyph[item.icon] }}</span>
+                  <span class="ta-nav-list__text">
+                    <span class="ta-nav-list__label">{{ item.label }}</span>
+                    <span class="ta-nav-list__desc">{{ item.description }}</span>
+                  </span>
+                </a>
+              </li>
             }
-            <ta-notification-center />
-          </div>
-        </header>
+          </ul>
+        </aside>
+
         <main class="ta-shell__main">
           <router-outlet />
         </main>
@@ -125,6 +151,7 @@ export class ShellPageComponent implements OnInit {
   private readonly scanService = inject(ScanService);
   readonly roleLabel = roleLabel;
   readonly glyph = NAV_ICON_GLYPH;
+  readonly navOpen = signal(false);
 
   readonly navItems = computed(() => navItemsForRole(this.auth.userRole()));
   readonly navFocus = computed(() => navFocusForRole(this.auth.userRole()));
@@ -135,6 +162,14 @@ export class ShellPageComponent implements OnInit {
   ngOnInit(): void {
     void this.audit.bootstrap();
     void this.loadAccounts();
+  }
+
+  toggleNav(): void {
+    this.navOpen.update((v) => !v);
+  }
+
+  closeNav(): void {
+    this.navOpen.set(false);
   }
 
   async loadAccounts(): Promise<void> {
@@ -152,6 +187,7 @@ export class ShellPageComponent implements OnInit {
 
   onAccountChange(accountId: string): void {
     this.tenant.setActiveAccount(accountId);
+    this.closeNav();
     this.notes.push({
       kind: 'info',
       title: 'Cuenta activa',

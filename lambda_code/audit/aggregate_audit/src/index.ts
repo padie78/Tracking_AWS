@@ -10,10 +10,12 @@ import {
   AuditReportGenerator,
   CustomerAuditDigestPublisher,
   DynamoDbAuditFindingRepository,
+  DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
   ProwlerSecurityEngine,
   type InventorySummaryView,
 } from '@track-aws/infrastructure';
+import type { InventoryResourceView } from '@track-aws/application';
 import { randomUUID } from 'node:crypto';
 
 type SerializedFinding = {
@@ -43,6 +45,7 @@ type Input = {
   finops: {
     findings: SerializedFinding[];
     inventorySummary?: InventorySummaryView | null;
+    resources?: InventoryResourceView[];
   };
   secops: { findings: SerializedFinding[]; warning?: string; engine?: string };
 };
@@ -191,6 +194,17 @@ export const handler: Handler<Input> = async (event) => {
   }
 
   const inventorySummary = event.finops?.inventorySummary ?? null;
+  const inventoryResources = event.finops?.resources ?? [];
+  const inventoryRepo = new DynamoDbAuditInventoryRepository();
+  if (inventoryResources.length > 0) {
+    await inventoryRepo.saveMany({
+      tenantId: event.tenantId,
+      auditId: event.auditId,
+      accountId: event.accountId,
+      resources: inventoryResources,
+    });
+  }
+
   const secopsFindings = await resolveSecopsFindings(event);
 
   const securityScore = scoreFromFindings(secopsFindings, 'secops');

@@ -35,6 +35,13 @@ export const APP_ROUTES: Routes = [
           import('./pages/audits/audits.page').then((m) => m.AuditsPageComponent),
       },
       {
+        path: 'inventory',
+        loadComponent: () =>
+          import('./pages/inventory/inventory.page').then(
+            (m) => m.InventoryPageComponent,
+          ),
+      },
+      {
         path: 'finops',
         loadComponent: () =>
           import('./pages/finops/finops.page').then((m) => m.FinopsPageComponent),

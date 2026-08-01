@@ -135,6 +135,35 @@ export interface AuditReportView {
   highCount: number;
 }
 
+export interface InventorySummaryView {
+  ec2Count: number;
+  ebsCount: number;
+  eipCount: number;
+  runningEc2Count: number;
+  stoppedEc2Count: number;
+  unattachedEbsCount: number;
+  idleEipCount: number;
+}
+
+export interface InventoryResourceView {
+  resourceType: string;
+  resourceId: string;
+  resourceArn: string;
+  region: string;
+  state: string;
+  detail: string;
+  estimatedMonthlyCostUsd: number;
+}
+
+export interface AccountInventoryView {
+  accountId: string;
+  capturedAtIso: string;
+  source: string;
+  auditId: string | null;
+  summary: InventorySummaryView;
+  resources: InventoryResourceView[];
+}
+
 export interface AwsAccountLinkView {
   accountId: string;
   displayName: string;
@@ -354,6 +383,47 @@ const GET_AUDIT_REPORT = /* GraphQL */ `
   }
 `;
 
+const INVENTORY_FIELDS = /* GraphQL */ `
+  accountId
+  capturedAtIso
+  source
+  auditId
+  summary {
+    ec2Count
+    ebsCount
+    eipCount
+    runningEc2Count
+    stoppedEc2Count
+    unattachedEbsCount
+    idleEipCount
+  }
+  resources {
+    resourceType
+    resourceId
+    resourceArn
+    region
+    state
+    detail
+    estimatedMonthlyCostUsd
+  }
+`;
+
+const GET_ACCOUNT_INVENTORY = /* GraphQL */ `
+  query GetAccountInventory($accountId: String!) {
+    getAccountInventory(accountId: $accountId) {
+      ${INVENTORY_FIELDS}
+    }
+  }
+`;
+
+const LIST_AUDIT_INVENTORY = /* GraphQL */ `
+  query ListAuditInventory($auditId: ID!) {
+    listAuditInventory(auditId: $auditId) {
+      ${INVENTORY_FIELDS}
+    }
+  }
+`;
+
 const LIST_FINDINGS_BY_SCAN = /* GraphQL */ `
   query ListFindingsByScan($scanId: ID!) {
     listFindingsByScan(scanId: $scanId) {
@@ -469,6 +539,30 @@ export class ScanService {
       ...authOptions,
     })) as { data?: { getAuditReport?: AuditReportView | null } };
     return result.data?.getAuditReport ?? null;
+  }
+
+  async getAccountInventory(accountId: string): Promise<AccountInventoryView> {
+    const authOptions = await authenticatedAppsyncOptions();
+    const result = (await this.client.graphql({
+      query: GET_ACCOUNT_INVENTORY,
+      variables: { accountId },
+      ...authOptions,
+    })) as { data?: { getAccountInventory?: AccountInventoryView } };
+    const inv = result.data?.getAccountInventory;
+    if (!inv) throw new Error('getAccountInventory no devolvió resultado.');
+    return inv;
+  }
+
+  async listAuditInventory(
+    auditId: string,
+  ): Promise<AccountInventoryView | null> {
+    const authOptions = await authenticatedAppsyncOptions();
+    const result = (await this.client.graphql({
+      query: LIST_AUDIT_INVENTORY,
+      variables: { auditId },
+      ...authOptions,
+    })) as { data?: { listAuditInventory?: AccountInventoryView | null } };
+    return result.data?.listAuditInventory ?? null;
   }
 
   async startScan(input: {

@@ -1,11 +1,13 @@
 import type { EChartsCoreOption } from 'echarts/core';
 
-const TEXT = '#9aa8c3';
-const ACCENT = '#3dd6c6';
-const BLUE = '#5b8def';
-const DANGER = '#f07178';
-const WARN = '#e6b450';
-const OK = '#7fd99a';
+const TEXT = '#6b7280';
+const ACCENT = '#0d9488';
+const BLUE = '#2563eb';
+const DANGER = '#dc2626';
+const WARN = '#d97706';
+const OK = '#059669';
+const GRID = '#e5e7eb';
+const PANEL = '#f3f4f6';
 
 export function gaugeScoreOption(score: number): EChartsCoreOption {
   const value = Math.max(0, Math.min(100, Math.round(score)));
@@ -38,7 +40,7 @@ export function gaugeScoreOption(score: number): EChartsCoreOption {
           valueAnimation: true,
           fontSize: 28,
           fontWeight: 700,
-          color: '#e8eef9',
+          color: '#111827',
           offsetCenter: [0, '10%'],
           formatter: '{value}',
         },
@@ -77,9 +79,9 @@ export function wafRadarOption(pillars: {
         { name: 'Sustain', max: 100 },
       ],
       axisName: { color: TEXT, fontSize: 11 },
-      splitArea: { areaStyle: { color: ['#121a2b', '#182338'] } },
-      splitLine: { lineStyle: { color: '#243049' } },
-      axisLine: { lineStyle: { color: '#243049' } },
+      splitArea: { areaStyle: { color: ['#ffffff', PANEL] } },
+      splitLine: { lineStyle: { color: GRID } },
+      axisLine: { lineStyle: { color: GRID } },
     },
     series: [
       {
@@ -120,7 +122,7 @@ export function severityPieOption(counts: {
         label: { color: TEXT, fontSize: 11 },
         data: data.length
           ? data
-          : [{ name: 'Sin datos', value: 1, itemStyle: { color: '#243049' } }],
+          : [{ name: 'Sin datos', value: 1, itemStyle: { color: GRID } }],
       },
     ],
   };
@@ -136,13 +138,13 @@ export function savingsBarOption(
     xAxis: {
       type: 'value',
       axisLabel: { color: TEXT, formatter: '${value}' },
-      splitLine: { lineStyle: { color: '#243049' } },
+      splitLine: { lineStyle: { color: GRID } },
     },
     yAxis: {
       type: 'category',
       data: top.map((r) => r.name).reverse(),
       axisLabel: { color: TEXT, width: 110, overflow: 'truncate' },
-      axisLine: { lineStyle: { color: '#243049' } },
+      axisLine: { lineStyle: { color: GRID } },
     },
     series: [
       {
@@ -173,7 +175,7 @@ export function scoreTrendOption(
       type: 'category',
       data: points.map((p) => p.label),
       axisLabel: { color: TEXT },
-      axisLine: { lineStyle: { color: '#243049' } },
+      axisLine: { lineStyle: { color: GRID } },
     },
     yAxis: [
       {
@@ -181,7 +183,7 @@ export function scoreTrendOption(
         min: 0,
         max: 100,
         axisLabel: { color: TEXT },
-        splitLine: { lineStyle: { color: '#243049' } },
+        splitLine: { lineStyle: { color: GRID } },
       },
       {
         type: 'value',

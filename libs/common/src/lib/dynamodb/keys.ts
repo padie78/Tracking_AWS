@@ -19,6 +19,7 @@ export const KeyPrefix = {
   Profile: 'PROFILE',
   Subscription: 'SUBSCRIPTION',
   Alert: 'ALERT#',
+  Resource: 'RESOURCE#',
 } as const;
 
 export type FindingCategoryKey =
@@ -96,6 +97,16 @@ export const DynamoKeys = {
 
   alertSkPrefix(): string {
     return KeyPrefix.Alert;
+  },
+
+  resourceSk(resourceType: string, resourceId: string): string {
+    return `${KeyPrefix.Resource}${resourceType}#${resourceId}`;
+  },
+
+  resourceSkPrefix(resourceType?: string): string {
+    return resourceType
+      ? `${KeyPrefix.Resource}${resourceType}#`
+      : KeyPrefix.Resource;
   },
 
   categoryGsi1Pk(tenantId: string, category: FindingCategoryKey): string {

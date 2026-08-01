@@ -10,6 +10,7 @@ export const EntityType = {
   AuditFinding: 'AUDIT_FINDING',
   SavingsDossier: 'SAVINGS_DOSSIER',
   AuditReport: 'AUDIT_REPORT',
+  InventoryResource: 'INVENTORY_RESOURCE',
   Subscription: 'SUBSCRIPTION',
 } as const;
 

@@ -45,7 +45,7 @@ resource "aws_lambda_function" "appsync_api" {
   handler          = "index.handler"
   filename         = data.archive_file.bootstrap.output_path
   source_code_hash = data.archive_file.bootstrap.output_base64sha256
-  timeout          = 30
+  timeout          = 120
   memory_size      = 512
   architectures    = ["arm64"]
 

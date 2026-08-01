@@ -11,6 +11,7 @@ export const handler: Handler<AuditPayload> = async (event) => {
 
   return {
     inventorySummary: result.inventorySummary,
+    resources: result.resources,
     findings: result.auditFindings.map((f) => ({
       findingId: f.findingId,
       domain: f.domain,

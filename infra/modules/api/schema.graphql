@@ -7,6 +7,8 @@ type Query {
   listAudits(auditId: ID, limit: Int): [AuditJob!]! @aws_cognito_user_pools
   listAuditFindings(auditId: ID!, domain: String): [AuditFinding!]! @aws_cognito_user_pools
   getAuditReport(auditId: ID!): AuditReport @aws_cognito_user_pools
+  getAccountInventory(accountId: String!): AccountInventory! @aws_cognito_user_pools
+  listAuditInventory(auditId: ID!): AccountInventory @aws_cognito_user_pools
   listAlertChannels: [AlertChannel!]! @aws_cognito_user_pools
 }
 
@@ -109,6 +111,25 @@ type InventorySummary @aws_cognito_user_pools {
   stoppedEc2Count: Int!
   unattachedEbsCount: Int!
   idleEipCount: Int!
+}
+
+type InventoryResource @aws_cognito_user_pools {
+  resourceType: String!
+  resourceId: String!
+  resourceArn: String!
+  region: String!
+  state: String!
+  detail: String!
+  estimatedMonthlyCostUsd: Float!
+}
+
+type AccountInventory @aws_cognito_user_pools {
+  accountId: String!
+  capturedAtIso: AWSDateTime!
+  source: String!
+  auditId: ID
+  summary: InventorySummary!
+  resources: [InventoryResource!]!
 }
 
 type AuditReport @aws_cognito_user_pools {

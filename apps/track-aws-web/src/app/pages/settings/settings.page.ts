@@ -14,7 +14,7 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
   encapsulation: ViewEncapsulation.None,
   imports: [FormsModule],
   template: `
-    <section class="ta-page">
+    <section class="ta-page ta-page--wide">
       <div class="ta-page__head">
         <div>
           <h1>Settings</h1>
@@ -39,35 +39,35 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
             </div>
 
             <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1rem">
-              <div class="ta-field">
-                <span class="ta-field__label">Account ID</span>
+              <div class="ta-float" [class.--filled]="!!accountId">
                 <input
                   class="ta-input"
                   name="accountId"
                   [(ngModel)]="accountId"
                   pattern="\\d{12}"
                   required
-                  placeholder="123456789012"
+                  placeholder=" "
+                  inputmode="numeric"
                 />
-                <span class="ta-field__hint">12 dígitos de la cuenta a auditar.</span>
+                <label>Account ID (12 dígitos)</label>
               </div>
-              <div class="ta-field">
-                <span class="ta-field__label">Nombre</span>
+              <div class="ta-float" [class.--filled]="!!displayName">
                 <input
                   class="ta-input"
                   name="displayName"
                   [(ngModel)]="displayName"
-                  placeholder="Prod / FinOps"
+                  placeholder=" "
                 />
+                <label>Nombre (Prod / FinOps)</label>
               </div>
-              <div class="ta-field" style="grid-column: 1 / -1">
-                <span class="ta-field__label">Rol IAM</span>
+              <div class="ta-float" style="grid-column: 1 / -1" [class.--filled]="!!roleName">
                 <input
                   class="ta-input"
                   name="roleName"
                   [(ngModel)]="roleName"
-                  placeholder="TrackAwsScannerRole"
+                  placeholder=" "
                 />
+                <label>Rol IAM</label>
               </div>
             </div>
 
@@ -200,18 +200,18 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
                   <option value="email">Email (vía SNS)</option>
                 </select>
               </div>
-              <div class="ta-field">
-                <span class="ta-field__label">Etiqueta</span>
-                <input class="ta-input" name="alertLabel" [(ngModel)]="alertLabel" placeholder="Ops Slack" />
+              <div class="ta-float" [class.--filled]="!!alertLabel">
+                <input class="ta-input" name="alertLabel" [(ngModel)]="alertLabel" placeholder=" " />
+                <label>Etiqueta</label>
               </div>
-              <div class="ta-field" style="grid-column: 1 / -1">
-                <span class="ta-field__label">Destino</span>
+              <div class="ta-float" style="grid-column: 1 / -1" [class.--filled]="!!alertTarget">
                 <input
                   class="ta-input"
                   name="alertTarget"
                   [(ngModel)]="alertTarget"
-                  placeholder="https://hooks.slack.com/…"
+                  placeholder=" "
                 />
+                <label>Destino (URL o email)</label>
               </div>
             </div>
 

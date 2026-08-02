@@ -64,7 +64,10 @@ export class GetTopologySnapshotUseCase {
       input.tenantId,
       focus.auditId,
     );
-    if (cached) return { ...cached, source: 'cache' };
+    // Snapshots viejos sin edges: regenerar.
+    if (cached && cached.edges.length > 0) {
+      return { ...cached, source: 'cache' };
+    }
 
     const [resources, findings] = await Promise.all([
       this.deps.inventory.listByAudit(input.tenantId, focus.auditId),

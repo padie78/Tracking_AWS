@@ -35,7 +35,18 @@ const NETWORK = new Set(['vpc', 'subnet', 'sg', 'eip', 'tgw']);
 const DATA = new Set(['s3', 'ebs', 'efs', 'glacier']);
 const IDENTITY = new Set(['iam-user', 'iam-role']);
 
-const COMPUTE_ATTACH = new Set(['ec2', 'lambda', 'rds', 'rds-cluster', 'elb']);
+/** Tipos que anclan el grafo (siempre se intentan conservar). */
+const STRUCTURAL = new Set([
+  'vpc',
+  'sg',
+  'ecs-cluster',
+  'ecs-service',
+  'elb',
+  'nat',
+]);
+
+const COMPUTE = new Set(['ec2', 'lambda', 'rds', 'rds-cluster', 'elb']);
+const DATA_SINKS = new Set(['dynamodb', 'sqs', 'sns', 's3']);
 
 export function classifyComputeClass(resourceType: string): ComputeClass {
   const t = resourceType.toLowerCase();
@@ -80,9 +91,17 @@ function shortLabel(r: InventoryResourceView): string {
   return `${id.slice(0, 12)}…${id.slice(-10)}`;
 }
 
+function healthRank(h: NodeHealth): number {
+  if (h === 'critical') return 0;
+  if (h === 'degraded') return 1;
+  if (h === 'stopped') return 2;
+  if (h === 'unknown') return 3;
+  return 4;
+}
+
 /**
  * Construye TopologySnapshot MVP desde inventario hot + findings del audit.
- * Edges heurísticos (contains / network); sin Athena.
+ * Conserva nodos estructurales para poder dibujar relaciones.
  */
 export function buildTopologySnapshot(input: {
   tenantId: string;
@@ -108,8 +127,10 @@ export function buildTopologySnapshot(input: {
     }
   }
 
+  const resourceByNodeId = new Map<string, InventoryResourceView>();
   const allNodes: TopologyNode[] = input.resources.map((r) => {
     const id = nodeIdForResource(r);
+    resourceByNodeId.set(id, r);
     const matched = [
       ...(findingsByArn.get(r.resourceArn) ?? []),
       ...(findingsByResourceId.get(r.resourceId) ?? []),
@@ -135,23 +156,9 @@ export function buildTopologySnapshot(input: {
     };
   });
 
-  const rank = (h: NodeHealth): number => {
-    if (h === 'critical') return 0;
-    if (h === 'degraded') return 1;
-    if (h === 'stopped') return 2;
-    if (h === 'unknown') return 3;
-    return 4;
-  };
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
 
-  const nodes = [...allNodes]
-    .sort(
-      (a, b) =>
-        rank(a.health) - rank(b.health) ||
-        b.estimatedMonthlyCostUsd - a.estimatedMonthlyCostUsd,
-    )
-    .slice(0, MAX_NODES);
-
-  const nodeIds = new Set(nodes.map((n) => n.id));
+  // ── Edges sobre el set completo (antes del cap) ──────────────────────────
   const edges: TopologyEdge[] = [];
   const edgeKeys = new Set<string>();
 
@@ -161,24 +168,20 @@ export function buildTopologySnapshot(input: {
     kind: EdgeKind,
     label?: string,
   ): void => {
-    if (!nodeIds.has(source) || !nodeIds.has(target) || source === target) return;
+    if (!byId.has(source) || !byId.has(target) || source === target) return;
     const id = `${kind}:${source}→${target}`;
     if (edgeKeys.has(id)) return;
     edgeKeys.add(id);
     edges.push({ id, source, target, kind, label });
   };
 
-  // ECS cluster contains service (resourceId = cluster/service).
-  for (const n of nodes) {
+  // ECS cluster → service
+  for (const n of allNodes) {
     if (n.resourceType !== 'ecs-service') continue;
-    const resourceId =
-      input.resources.find((r) => nodeIdForResource(r) === n.id)?.resourceId ??
-      '';
-    const cluster = resourceId.includes('/')
-      ? resourceId.split('/')[0]
-      : null;
+    const resourceId = resourceByNodeId.get(n.id)?.resourceId ?? '';
+    const cluster = resourceId.includes('/') ? resourceId.split('/')[0] : null;
     if (!cluster) continue;
-    const clusterNode = nodes.find(
+    const clusterNode = allNodes.find(
       (c) =>
         c.resourceType === 'ecs-cluster' &&
         c.region === n.region &&
@@ -190,27 +193,95 @@ export function buildTopologySnapshot(input: {
     if (clusterNode) addEdge(clusterNode.id, n.id, 'contains', 'service');
   }
 
-  // Por región: VPC → SG; SG → compute (cap).
-  const regions = [...new Set(nodes.map((n) => n.region))];
+  const regions = [...new Set(allNodes.map((n) => n.region))];
   for (const region of regions) {
-    const vpcs = nodes.filter((n) => n.resourceType === 'vpc' && n.region === region);
-    const sgs = nodes.filter((n) => n.resourceType === 'sg' && n.region === region);
-    const compute = nodes.filter(
-      (n) => COMPUTE_ATTACH.has(n.resourceType) && n.region === region,
-    );
+    const inRegion = allNodes.filter((n) => n.region === region);
+    const vpcs = inRegion.filter((n) => n.resourceType === 'vpc');
+    const sgs = inRegion.filter((n) => n.resourceType === 'sg');
+    const nats = inRegion.filter((n) => n.resourceType === 'nat');
+    const elbs = inRegion.filter((n) => n.resourceType === 'elb');
+    const compute = inRegion.filter((n) => COMPUTE.has(n.resourceType));
+    const data = inRegion.filter((n) => DATA_SINKS.has(n.resourceType));
+    const ebs = inRegion.filter((n) => n.resourceType === 'ebs');
+    const ec2 = inRegion.filter((n) => n.resourceType === 'ec2');
 
+    // VPC → SG / NAT / ELB
     for (const vpc of vpcs) {
-      for (const sg of sgs.slice(0, 12)) {
-        addEdge(vpc.id, sg.id, 'contains', 'sg');
+      for (const sg of sgs) addEdge(vpc.id, sg.id, 'contains', 'sg');
+      for (const nat of nats) addEdge(vpc.id, nat.id, 'contains', 'nat');
+      for (const elb of elbs) addEdge(vpc.id, elb.id, 'contains', 'elb');
+    }
+
+    // Cada compute → 1 SG de la región (evita fan-out N×M)
+    for (const c of compute) {
+      const sg = sgs[0];
+      if (sg) addEdge(sg.id, c.id, 'network', 'sg');
+    }
+
+    // ELB → EC2 (misma región)
+    for (const elb of elbs) {
+      for (const inst of ec2.slice(0, 8)) {
+        addEdge(elb.id, inst.id, 'depends_on', 'target');
       }
     }
 
-    for (const sg of sgs.slice(0, 8)) {
-      for (const c of compute.slice(0, 10)) {
-        addEdge(sg.id, c.id, 'network');
+    // EC2 → EBS (misma región, cap)
+    for (const inst of ec2.slice(0, 12)) {
+      for (const vol of ebs.slice(0, 4)) {
+        addEdge(inst.id, vol.id, 'contains', 'volume');
+      }
+    }
+
+    // Lambda → data sinks (misma región, cap por lambda)
+    const lambdas = inRegion.filter((n) => n.resourceType === 'lambda');
+    for (const fn of lambdas.slice(0, 40)) {
+      for (const sink of data.slice(0, 3)) {
+        addEdge(fn.id, sink.id, 'data', sink.resourceType);
       }
     }
   }
+
+  // ── Cap de nodos: estructurales + extremos de edges + salud/costo ────────
+  const structural = allNodes.filter((n) => STRUCTURAL.has(n.resourceType));
+  const endpointIds = new Set<string>();
+  for (const e of edges) {
+    endpointIds.add(e.source);
+    endpointIds.add(e.target);
+  }
+
+  const selected = new Map<string, TopologyNode>();
+  for (const n of structural) selected.set(n.id, n);
+
+  // Preferir endpoints de edges (relaciones visibles)
+  const endpoints = allNodes
+    .filter((n) => endpointIds.has(n.id) && !selected.has(n.id))
+    .sort(
+      (a, b) =>
+        healthRank(a.health) - healthRank(b.health) ||
+        b.estimatedMonthlyCostUsd - a.estimatedMonthlyCostUsd,
+    );
+  for (const n of endpoints) {
+    if (selected.size >= MAX_NODES) break;
+    selected.set(n.id, n);
+  }
+
+  const rest = allNodes
+    .filter((n) => !selected.has(n.id))
+    .sort(
+      (a, b) =>
+        healthRank(a.health) - healthRank(b.health) ||
+        b.estimatedMonthlyCostUsd - a.estimatedMonthlyCostUsd,
+    );
+  for (const n of rest) {
+    if (selected.size >= MAX_NODES) break;
+    selected.set(n.id, n);
+  }
+
+  const nodes = [...selected.values()];
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const keptEdges = edges.filter(
+    (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+  );
 
   let serverlessCount = 0;
   let nonServerlessCount = 0;
@@ -230,12 +301,12 @@ export function buildTopologySnapshot(input: {
     source: input.source ?? 'derived',
     summary: {
       nodeCount: nodes.length,
-      edgeCount: edges.length,
+      edgeCount: keptEdges.length,
       serverlessCount,
       nonServerlessCount,
       criticalNodeCount,
     },
     nodes,
-    edges,
+    edges: keptEdges,
   };
 }

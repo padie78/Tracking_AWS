@@ -79,12 +79,9 @@ type InventorySource = 'live' | 'audit';
           </div>
           <div class="ta-meta" style="margin-bottom:0.75rem">
             audit <code>{{ topo.auditId.slice(0, 8) }}…</code>
-            · {{ topo.summary.nodeCount }} nodos
-            · {{ topo.summary.edgeCount }} edges
-            · serverless {{ topo.summary.serverlessCount }}
-            · no-serverless {{ topo.summary.nonServerlessCount }}
+            · dataset {{ topo.summary.nodeCount }} nodos / {{ topo.summary.edgeCount }} edges
             · critical {{ topo.summary.criticalNodeCount }}
-            · fuente {{ topo.source }}
+            · Usá <strong>Resumen</strong> (por tipo) o <strong>Riesgos</strong> (solo RED/YELLOW)
           </div>
           <ta-topology-graph [snapshot]="topo" />
         </div>

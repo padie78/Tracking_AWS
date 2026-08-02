@@ -131,57 +131,6 @@ resource "aws_appsync_resolver" "health" {
   VTPL
 }
 
-resource "aws_appsync_resolver" "publish_scan_status_changed" {
-  api_id      = aws_appsync_graphql_api.this.id
-  type        = "Mutation"
-  field       = "publishScanStatusChanged"
-  data_source = aws_appsync_datasource.none.name
-
-  request_template  = <<-VTPL
-    {
-      "version": "2018-05-29",
-      "payload": $util.toJson($ctx.args.input)
-    }
-  VTPL
-  response_template = <<-VTPL
-    $util.toJson($ctx.result)
-  VTPL
-}
-
-resource "aws_appsync_resolver" "publish_finding_ready" {
-  api_id      = aws_appsync_graphql_api.this.id
-  type        = "Mutation"
-  field       = "publishFindingReady"
-  data_source = aws_appsync_datasource.none.name
-
-  request_template  = <<-VTPL
-    {
-      "version": "2018-05-29",
-      "payload": $util.toJson($ctx.args.input)
-    }
-  VTPL
-  response_template = <<-VTPL
-    $util.toJson($ctx.result)
-  VTPL
-}
-
-resource "aws_appsync_resolver" "publish_dossier_ready" {
-  api_id      = aws_appsync_graphql_api.this.id
-  type        = "Mutation"
-  field       = "publishDossierReady"
-  data_source = aws_appsync_datasource.none.name
-
-  request_template  = <<-VTPL
-    {
-      "version": "2018-05-29",
-      "payload": $util.toJson($ctx.args.input)
-    }
-  VTPL
-  response_template = <<-VTPL
-    $util.toJson($ctx.result)
-  VTPL
-}
-
 resource "aws_appsync_resolver" "publish_audit_status_changed" {
   api_id      = aws_appsync_graphql_api.this.id
   type        = "Mutation"
@@ -203,36 +152,6 @@ resource "aws_appsync_resolver" "ping" {
   api_id            = aws_appsync_graphql_api.this.id
   type              = "Query"
   field             = "ping"
-  data_source       = aws_appsync_datasource.api.name
-  depends_on        = [terraform_data.appsync_datasources_ready]
-  request_template  = local.direct_lambda_request_template
-  response_template = local.direct_lambda_response_template
-}
-
-resource "aws_appsync_resolver" "list_findings_by_scan" {
-  api_id            = aws_appsync_graphql_api.this.id
-  type              = "Query"
-  field             = "listFindingsByScan"
-  data_source       = aws_appsync_datasource.api.name
-  depends_on        = [terraform_data.appsync_datasources_ready]
-  request_template  = local.direct_lambda_request_template
-  response_template = local.direct_lambda_response_template
-}
-
-resource "aws_appsync_resolver" "get_savings_dossier" {
-  api_id            = aws_appsync_graphql_api.this.id
-  type              = "Query"
-  field             = "getSavingsDossier"
-  data_source       = aws_appsync_datasource.api.name
-  depends_on        = [terraform_data.appsync_datasources_ready]
-  request_template  = local.direct_lambda_request_template
-  response_template = local.direct_lambda_response_template
-}
-
-resource "aws_appsync_resolver" "start_scan" {
-  api_id            = aws_appsync_graphql_api.this.id
-  type              = "Mutation"
-  field             = "startScan"
   data_source       = aws_appsync_datasource.api.name
   depends_on        = [terraform_data.appsync_datasources_ready]
   request_template  = local.direct_lambda_request_template
@@ -323,16 +242,6 @@ resource "aws_appsync_resolver" "start_audit" {
   api_id            = aws_appsync_graphql_api.this.id
   type              = "Mutation"
   field             = "startAudit"
-  data_source       = aws_appsync_datasource.api.name
-  depends_on        = [terraform_data.appsync_datasources_ready]
-  request_template  = local.direct_lambda_request_template
-  response_template = local.direct_lambda_response_template
-}
-
-resource "aws_appsync_resolver" "generate_savings_dossier" {
-  api_id            = aws_appsync_graphql_api.this.id
-  type              = "Mutation"
-  field             = "generateSavingsDossier"
   data_source       = aws_appsync_datasource.api.name
   depends_on        = [terraform_data.appsync_datasources_ready]
   request_template  = local.direct_lambda_request_template

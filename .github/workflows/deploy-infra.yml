@@ -26,7 +26,6 @@ env:
   TF_INPUT: "false"
   TF_VAR_project_name: ${{ vars.PROJECT_NAME || 'track-aws' }}
   TF_VAR_appsync_graphql_api_name: ${{ vars.APPSYNC_GRAPHQL_API_NAME || 'api' }}
-  TF_VAR_scan_ingestion_secret: ${{ secrets.SCAN_INGESTION_SECRET }}
 
 jobs:
   terraform:

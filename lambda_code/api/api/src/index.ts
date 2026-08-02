@@ -1,23 +1,24 @@
 import type { AppSyncResolverEvent, AppSyncResolverHandler } from 'aws-lambda';
 import {
-  enqueueInventoryScan,
-  generateSavingsDossier,
   getAccountInventory,
   getAudits,
   getAuditReport,
-  getSavingsDossier,
   linkAwsAccount,
   listAlertChannels,
   listAuditFindings,
   listAuditInventory,
   listAwsAccounts,
-  listFindingsByScan,
   startAudit,
   upsertAlertChannel,
   deleteAlertChannel,
   verifyAwsAccountLink,
 } from './composition-root';
-import { AppSyncTypedError, requireMembership, requireCanManageConnections, requireCanRunScans, rethrowAsTyped } from './errors';
+import {
+  requireMembership,
+  requireCanManageConnections,
+  requireCanRunScans,
+  rethrowAsTyped,
+} from './errors';
 
 type CognitoIdentity = {
   claims?: Record<string, unknown>;
@@ -27,15 +28,6 @@ type CognitoIdentity = {
 type ResolverArgs =
   | {
       fieldName: 'startAudit';
-      args: {
-        input: {
-          accountId: string;
-          regions?: string[] | null;
-        };
-      };
-    }
-  | {
-      fieldName: 'startScan';
       args: {
         input: {
           accountId: string;
@@ -82,21 +74,6 @@ type ResolverArgs =
       fieldName: 'listAuditInventory';
       args: { auditId: string };
     }
-  | { fieldName: 'listFindingsByScan'; args: { scanId: string } }
-  | {
-      fieldName: 'getSavingsDossier';
-      args: { dossierId?: string | null; scanId?: string | null };
-    }
-  | {
-      fieldName: 'generateSavingsDossier';
-      args: {
-        input: {
-          scanId: string;
-          accountId: string;
-          roleTone?: 'finops_admin' | 'analyst' | 'viewer' | null;
-        };
-      };
-    }
   | { fieldName: 'listAlertChannels'; args: Record<string, never> }
   | {
       fieldName: 'upsertAlertChannel';
@@ -133,22 +110,6 @@ async function dispatch(
         auditId: result.auditId,
         correlationId: result.correlationId,
         executionArn: result.executionArn,
-        tenantId,
-        accountId: op.args.input.accountId,
-      };
-    }
-
-    case 'startScan': {
-      requireCanRunScans(ctx);
-      const result = await enqueueInventoryScan.execute({
-        tenantId,
-        accountId: op.args.input.accountId,
-        regions: op.args.input.regions ?? undefined,
-      });
-      return {
-        accepted: true,
-        scanId: result.scanId,
-        correlationId: result.correlationId,
         tenantId,
         accountId: op.args.input.accountId,
       };
@@ -205,40 +166,6 @@ async function dispatch(
         tenantId,
         auditId: op.args.auditId,
       });
-
-    case 'listFindingsByScan':
-      return listFindingsByScan.execute({
-        tenantId,
-        scanId: op.args.scanId,
-      });
-
-    case 'getSavingsDossier': {
-      if (!op.args.dossierId && !op.args.scanId) {
-        throw new AppSyncTypedError(
-          'ValidationError',
-          'dossierId o scanId requerido.',
-        );
-      }
-      return getSavingsDossier.execute({
-        tenantId,
-        dossierId: op.args.dossierId ?? undefined,
-        scanId: op.args.scanId ?? undefined,
-      });
-    }
-
-    case 'generateSavingsDossier': {
-      requireCanRunScans(ctx);
-      const result = await generateSavingsDossier.execute({
-        tenantId,
-        scanId: op.args.input.scanId,
-        accountId: op.args.input.accountId,
-        roleTone: op.args.input.roleTone ?? ctx.role.value,
-      });
-      return getSavingsDossier.execute({
-        tenantId,
-        dossierId: result.dossierId,
-      });
-    }
 
     case 'listAlertChannels':
       return listAlertChannels.execute(tenantId);

@@ -37,33 +37,6 @@ data "aws_iam_policy_document" "lambda_inline" {
   }
 
   statement {
-    sid    = "SqsFinopsQueues"
-    effect = "Allow"
-    actions = [
-      "sqs:SendMessage",
-      "sqs:SendMessageBatch",
-      "sqs:ReceiveMessage",
-      "sqs:DeleteMessage",
-      "sqs:DeleteMessageBatch",
-      "sqs:ChangeMessageVisibility",
-      "sqs:GetQueueAttributes",
-      "sqs:GetQueueUrl",
-    ]
-    resources = compact([
-      var.scan_queue_arn,
-      var.scan_dlq_arn,
-      var.rightsizing_queue_arn,
-      var.rightsizing_dlq_arn,
-      var.modernization_queue_arn,
-      var.modernization_dlq_arn,
-      var.orphaned_queue_arn,
-      var.orphaned_dlq_arn,
-      var.dossier_queue_arn,
-      var.dossier_dlq_arn,
-    ])
-  }
-
-  statement {
     sid     = "BedrockInvokeDossier"
     effect  = "Allow"
     actions = ["bedrock:InvokeModel"]

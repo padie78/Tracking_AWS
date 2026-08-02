@@ -10,13 +10,9 @@ terraform output appsync_api_id
 terraform output appsync_endpoint
 
 echo ""
-echo "=== Scan ingestion ==="
-terraform output scan_url
-
-echo ""
-echo "=== Analyzers ==="
-terraform output inventory_scanner_name
-terraform output rightsizing_analyzer_name
-terraform output modernization_analyzer_name
-terraform output orphaned_analyzer_name
-terraform output dossier_generator_name
+echo "=== Audit pipeline ==="
+terraform output audit_state_machine_arn
+terraform output cloudquery_inventory_name
+terraform output load_prowler_results_name
+terraform output load_trivy_results_name
+terraform output aggregate_audit_name

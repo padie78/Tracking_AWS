@@ -1,16 +1,12 @@
 import {
-  EnqueueInventoryScanUseCase,
-  GenerateSavingsDossierUseCase,
   GetAccountInventoryUseCase,
   GetAuditUseCase,
   GetAuditReportUseCase,
-  GetSavingsDossierUseCase,
   LinkAwsAccountUseCase,
   ListAlertChannelsUseCase,
   ListAuditFindingsUseCase,
   ListAuditInventoryUseCase,
   ListAwsAccountsUseCase,
-  ListFindingsByScanUseCase,
   StartAuditUseCase,
   UpsertAlertChannelUseCase,
   DeleteAlertChannelUseCase,
@@ -18,29 +14,20 @@ import {
 } from '@track-aws/application';
 import {
   AppSyncAuditEventPublisherAdapter,
-  AppSyncDossierEventPublisherAdapter,
   AssumeRoleAwsInventoryAdapter,
   AuditReportGenerator,
-  BedrockDossierGeneratorAdapter,
   ConsoleLogger,
   DynamoDbAlertChannelRepository,
   DynamoDbAuditFindingRepository,
   DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
   DynamoDbAwsAccountLinkRepository,
-  DynamoDbDossierRepository,
-  DynamoDbFindingRepository,
-  DynamoDbScanJobRepository,
-  SqsScanQueuePublisherAdapter,
   StepFunctionsAuditOrchestratorAdapter,
   UuidGenerator,
 } from '@track-aws/infrastructure';
 
 const logger = new ConsoleLogger({ source: 'appsync_api' });
 const idGenerator = new UuidGenerator();
-const scanRepository = new DynamoDbScanJobRepository();
-const findingRepository = new DynamoDbFindingRepository();
-const dossierRepository = new DynamoDbDossierRepository();
 const accountLinkRepository = new DynamoDbAwsAccountLinkRepository();
 const auditJobRepository = new DynamoDbAuditJobRepository();
 const auditFindingRepository = new DynamoDbAuditFindingRepository();
@@ -52,14 +39,6 @@ function requireEnv(name: string): string {
   if (!value) throw new Error(`Missing env ${name}`);
   return value;
 }
-
-export const enqueueInventoryScan = new EnqueueInventoryScanUseCase({
-  scanWriter: scanRepository,
-  scanQueue: new SqsScanQueuePublisherAdapter(),
-  accountLinks: accountLinkRepository,
-  idGenerator,
-  logger,
-});
 
 export const startAudit = new StartAuditUseCase({
   accountLinks: accountLinkRepository,
@@ -108,19 +87,6 @@ export const verifyAwsAccountLink = new VerifyAwsAccountLinkUseCase({
 });
 
 export const listAwsAccounts = new ListAwsAccountsUseCase(accountLinkRepository);
-
-export const listFindingsByScan = new ListFindingsByScanUseCase(findingRepository);
-
-export const getSavingsDossier = new GetSavingsDossierUseCase(dossierRepository);
-
-export const generateSavingsDossier = new GenerateSavingsDossierUseCase({
-  findingReader: findingRepository,
-  dossierAi: new BedrockDossierGeneratorAdapter(),
-  dossierWriter: dossierRepository,
-  dossierNotifier: new AppSyncDossierEventPublisherAdapter(),
-  idGenerator,
-  logger,
-});
 
 export const upsertAlertChannel = new UpsertAlertChannelUseCase({
   channels: alertChannelRepository,

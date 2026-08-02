@@ -14,5 +14,4 @@ export const environment: AppRuntimeEnvironment = {
     oauthRedirectSignIn: 'http://localhost:4200/auth/callback',
     oauthRedirectSignOut: 'http://localhost:4200/login',
   },
-  scanIngestionUrl: 'https://vz9e0zlfdb.execute-api.eu-central-1.amazonaws.com/scan',
 };

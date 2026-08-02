@@ -15,5 +15,4 @@ export const environment: AppRuntimeEnvironment = {
     oauthRedirectSignIn: 'REPLACE_OAUTH_SIGN_IN',
     oauthRedirectSignOut: 'REPLACE_OAUTH_SIGN_OUT',
   },
-  scanIngestionUrl: 'REPLACE_SCAN_URL',
 };

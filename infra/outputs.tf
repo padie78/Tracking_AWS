@@ -71,60 +71,6 @@ output "athena_workgroup_name" {
   value = module.analytics.athena_workgroup_name
 }
 
-# Queues
-output "scan_queue_url" {
-  value = module.queues.scan_queue_url
-}
-
-output "rightsizing_queue_url" {
-  value = module.queues.rightsizing_queue_url
-}
-
-output "modernization_queue_url" {
-  value = module.queues.modernization_queue_url
-}
-
-output "orphaned_queue_url" {
-  value = module.queues.orphaned_queue_url
-}
-
-output "dossier_queue_url" {
-  value = module.queues.dossier_queue_url
-}
-
-# Lambdas (CI update-function-code)
-output "scan_ingestion_name" {
-  value = module.lambdas.scan_ingestion_name
-}
-
-output "inventory_scanner_name" {
-  value = module.lambdas.inventory_scanner_name
-}
-
-output "rightsizing_analyzer_name" {
-  value = module.lambdas.rightsizing_analyzer_name
-}
-
-output "modernization_analyzer_name" {
-  value = module.lambdas.modernization_analyzer_name
-}
-
-output "orphaned_analyzer_name" {
-  value = module.lambdas.orphaned_analyzer_name
-}
-
-output "dossier_generator_name" {
-  value = module.lambdas.dossier_generator_name
-}
-
-output "scan_url" {
-  value = module.lambdas.scan_url
-}
-
-output "ingestion_api_endpoint" {
-  value = module.lambdas.ingestion_api_endpoint
-}
-
 # Frontend
 output "frontend_bucket" {
   value = module.frontend_hosting.bucket_name
@@ -166,6 +112,7 @@ output "reports_bucket" {
   value = module.storage.reports_bucket_name
 }
 
+# Lambdas (CI update-function-code)
 output "resolve_account_name" {
   value = module.lambdas.resolve_account_name
 }

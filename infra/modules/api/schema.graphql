@@ -1,8 +1,6 @@
 type Query {
   health: String! @aws_api_key
   ping(message: String!): String! @aws_cognito_user_pools
-  listFindingsByScan(scanId: ID!): [Finding!]! @aws_cognito_user_pools
-  getSavingsDossier(dossierId: ID, scanId: ID): SavingsDossier @aws_cognito_user_pools
   listAwsAccounts: [AwsAccountLink!]! @aws_cognito_user_pools
   listAudits(auditId: ID, limit: Int): [AuditJob!]! @aws_cognito_user_pools
   listAuditFindings(auditId: ID!, domain: String): [AuditFinding!]! @aws_cognito_user_pools
@@ -14,15 +12,9 @@ type Query {
 
 type Mutation {
   startAudit(input: StartAuditInput!): StartAuditResult! @aws_cognito_user_pools
-  startScan(input: StartScanInput!): StartScanResult! @aws_cognito_user_pools
   linkAwsAccount(input: LinkAwsAccountInput!): LinkAwsAccountResult! @aws_cognito_user_pools
   verifyAwsAccountLink(input: VerifyAwsAccountLinkInput!): VerifyAwsAccountLinkResult!
     @aws_cognito_user_pools
-  generateSavingsDossier(input: GenerateSavingsDossierInput!): SavingsDossier
-    @aws_cognito_user_pools
-  publishScanStatusChanged(input: ScanStatusChangedInput!): ScanStatusChanged! @aws_api_key
-  publishFindingReady(input: FindingReadyInput!): FindingReady! @aws_api_key
-  publishDossierReady(input: DossierReadyInput!): DossierReady! @aws_api_key
   publishAuditStatusChanged(input: AuditStatusChangedInput!): AuditStatusChanged!
     @aws_api_key
   upsertAlertChannel(input: UpsertAlertChannelInput!): AlertChannel! @aws_cognito_user_pools
@@ -30,15 +22,6 @@ type Mutation {
 }
 
 type Subscription {
-  onScanStatusChanged(tenantId: ID!, scanId: ID): ScanStatusChanged
-    @aws_subscribe(mutations: ["publishScanStatusChanged"])
-    @aws_cognito_user_pools
-  onFindingReady(tenantId: ID!, scanId: ID): FindingReady
-    @aws_subscribe(mutations: ["publishFindingReady"])
-    @aws_cognito_user_pools
-  onDossierReady(tenantId: ID!, scanId: ID): DossierReady
-    @aws_subscribe(mutations: ["publishDossierReady"])
-    @aws_cognito_user_pools
   onAuditStatusChanged(tenantId: ID!, auditId: ID): AuditStatusChanged
     @aws_subscribe(mutations: ["publishAuditStatusChanged"])
     @aws_cognito_user_pools
@@ -150,19 +133,6 @@ type AuditReport @aws_cognito_user_pools {
   highCount: Int!
 }
 
-input StartScanInput {
-  accountId: String!
-  regions: [String!]
-}
-
-type StartScanResult @aws_cognito_user_pools {
-  accepted: Boolean!
-  scanId: ID!
-  correlationId: ID!
-  tenantId: ID!
-  accountId: String!
-}
-
 input LinkAwsAccountInput {
   accountId: String!
   displayName: String
@@ -202,100 +172,6 @@ type AwsAccountLink @aws_cognito_user_pools {
   status: String!
   linkedAtIso: AWSDateTime!
   verifiedAtIso: AWSDateTime
-}
-
-input GenerateSavingsDossierInput {
-  scanId: ID!
-  accountId: String!
-  roleTone: String
-}
-
-type Finding @aws_cognito_user_pools {
-  tenantId: ID!
-  scanId: ID!
-  findingId: ID!
-  category: String!
-  resourceArn: String!
-  resourceId: String!
-  region: String!
-  title: String!
-  rationale: String!
-  severity: String!
-  estimatedMonthlySavingsUsd: Float!
-  recommendedAction: String!
-  createdAtIso: AWSDateTime!
-}
-
-type SavingsDossier @aws_cognito_user_pools {
-  tenantId: ID!
-  dossierId: ID!
-  scanId: ID!
-  accountId: String!
-  title: String!
-  markdownBody: String!
-  totalEstimatedMonthlySavingsUsd: Float!
-  findingIds: [ID!]!
-  remediationSteps: [RemediationStep!]!
-  createdAtIso: AWSDateTime!
-}
-
-type RemediationStep @aws_cognito_user_pools {
-  order: Int!
-  title: String!
-  instruction: String!
-  estimatedMinutes: Int
-}
-
-input ScanStatusChangedInput {
-  tenantId: ID!
-  scanId: ID!
-  accountId: String!
-  status: String!
-  findingCount: Int!
-  estimatedMonthlySavingsUsd: Float!
-}
-
-type ScanStatusChanged @aws_api_key @aws_cognito_user_pools {
-  tenantId: ID!
-  scanId: ID!
-  accountId: String!
-  status: String!
-  findingCount: Int!
-  estimatedMonthlySavingsUsd: Float!
-}
-
-input FindingReadyInput {
-  tenantId: ID!
-  scanId: ID!
-  findingId: ID!
-  category: String!
-  estimatedMonthlySavingsUsd: Float!
-  title: String!
-}
-
-type FindingReady @aws_api_key @aws_cognito_user_pools {
-  tenantId: ID!
-  scanId: ID!
-  findingId: ID!
-  category: String!
-  estimatedMonthlySavingsUsd: Float!
-  title: String!
-}
-
-input DossierReadyInput {
-  tenantId: ID!
-  dossierId: ID!
-  scanId: ID!
-  title: String!
-  totalEstimatedMonthlySavingsUsd: Float!
-}
-
-type DossierReady @aws_api_key @aws_cognito_user_pools {
-  tenantId: ID!
-  dossierId: ID!
-  scanId: ID!
-  title: String!
-  totalEstimatedMonthlySavingsUsd: Float!
 }
 
 input AuditStatusChangedInput {

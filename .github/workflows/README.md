@@ -18,9 +18,7 @@
 
 ### Secrets (opcional)
 
-| Nombre | Descripción |
-|--------|-------------|
-| `SCAN_INGESTION_SECRET` | Header `x-scan-secret` para `POST /scan` |
+Ninguno adicional por ahora (el pipeline HTTP `POST /scan` fue retirado).
 
 ### Variables (recomendadas tras bootstrap)
 

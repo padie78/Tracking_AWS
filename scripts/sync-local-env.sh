@@ -35,7 +35,6 @@ APPSYNC_API_KEY="$(echo "${OUTPUTS}" | jq -r '.appsync_api_key.value // empty')"
 COGNITO_POOL="$(echo "${OUTPUTS}" | jq -r '.cognito_user_pool_id.value // empty')"
 COGNITO_CLIENT="$(echo "${OUTPUTS}" | jq -r '.cognito_web_client_id.value // empty')"
 COGNITO_DOMAIN="$(echo "${OUTPUTS}" | jq -r '.cognito_domain.value // empty')"
-SCAN_URL="$(echo "${OUTPUTS}" | jq -r '.scan_url.value // empty')"
 
 if [ -z "${APPSYNC_ENDPOINT}" ] || [ -z "${APPSYNC_API_KEY}" ] || [ -z "${COGNITO_POOL}" ] || [ -z "${COGNITO_CLIENT}" ]; then
   echo "Error: faltan outputs requeridos (appsync_endpoint, appsync_api_key, cognito_user_pool_id, cognito_web_client_id)." >&2
@@ -59,12 +58,10 @@ export const environment: AppRuntimeEnvironment = {
     oauthRedirectSignIn: 'http://localhost:4200/auth/callback',
     oauthRedirectSignOut: 'http://localhost:4200/login',
   },
-  scanIngestionUrl: '${SCAN_URL}',
 };
 EOF
 
 echo "OK: ${ENV_FILE} actualizado."
 echo ""
 echo "=== Referencia rápida ==="
-terraform output scan_url 2>/dev/null || true
 terraform output frontend_url 2>/dev/null || true

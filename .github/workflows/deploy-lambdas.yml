@@ -42,24 +42,6 @@ jobs:
           - path: api/api
             artifact: api
             tf_output: appsync_api_name
-          - path: ingestion/scan_ingestion
-            artifact: scan_ingestion
-            tf_output: scan_ingestion_name
-          - path: ingestion/inventory_scanner
-            artifact: inventory_scanner
-            tf_output: inventory_scanner_name
-          - path: ingestion/rightsizing_analyzer
-            artifact: rightsizing_analyzer
-            tf_output: rightsizing_analyzer_name
-          - path: ingestion/modernization_analyzer
-            artifact: modernization_analyzer
-            tf_output: modernization_analyzer_name
-          - path: ingestion/orphaned_analyzer
-            artifact: orphaned_analyzer
-            tf_output: orphaned_analyzer_name
-          - path: ingestion/dossier_generator
-            artifact: dossier_generator
-            tf_output: dossier_generator_name
           - path: auth/post_confirmation
             artifact: post_confirmation
             tf_output: post_confirmation_name
@@ -127,24 +109,6 @@ jobs:
           - path: api/api
             artifact: api
             tf_output: appsync_api_name
-          - path: ingestion/scan_ingestion
-            artifact: scan_ingestion
-            tf_output: scan_ingestion_name
-          - path: ingestion/inventory_scanner
-            artifact: inventory_scanner
-            tf_output: inventory_scanner_name
-          - path: ingestion/rightsizing_analyzer
-            artifact: rightsizing_analyzer
-            tf_output: rightsizing_analyzer_name
-          - path: ingestion/modernization_analyzer
-            artifact: modernization_analyzer
-            tf_output: modernization_analyzer_name
-          - path: ingestion/orphaned_analyzer
-            artifact: orphaned_analyzer
-            tf_output: orphaned_analyzer_name
-          - path: ingestion/dossier_generator
-            artifact: dossier_generator
-            tf_output: dossier_generator_name
           - path: auth/post_confirmation
             artifact: post_confirmation
             tf_output: post_confirmation_name
@@ -285,12 +249,7 @@ jobs:
           steps.tf.outputs.skip != 'true' && (
           matrix.artifact == 'api' ||
           matrix.artifact == 'aggregate_audit' ||
-          matrix.artifact == 'fail_audit' ||
-          matrix.artifact == 'inventory_scanner' ||
-          matrix.artifact == 'rightsizing_analyzer' ||
-          matrix.artifact == 'modernization_analyzer' ||
-          matrix.artifact == 'orphaned_analyzer' ||
-          matrix.artifact == 'dossier_generator'
+          matrix.artifact == 'fail_audit'
           )
         env:
           FUNCTION_NAME: ${{ steps.tf.outputs.function_name }}

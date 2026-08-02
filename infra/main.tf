@@ -28,12 +28,6 @@ module "analytics" {
   data_lake_bucket_arn  = module.storage.data_lake_bucket_arn
 }
 
-module "queues" {
-  source      = "./modules/queues"
-  name_prefix = local.name_prefix
-  tags        = local.event_tags
-}
-
 module "alerts" {
   source      = "./modules/alerts"
   name_prefix = local.name_prefix
@@ -56,22 +50,6 @@ module "lambdas" {
   table_name = module.database.table_name
   table_arn  = module.database.table_arn
 
-  scan_queue_url              = module.queues.scan_queue_url
-  scan_queue_arn              = module.queues.scan_queue_arn
-  scan_dlq_arn                = module.queues.dlq_arns["scan"]
-  rightsizing_queue_url       = module.queues.rightsizing_queue_url
-  rightsizing_queue_arn       = module.queues.rightsizing_queue_arn
-  rightsizing_dlq_arn         = module.queues.dlq_arns["rightsizing"]
-  modernization_queue_url     = module.queues.modernization_queue_url
-  modernization_queue_arn     = module.queues.modernization_queue_arn
-  modernization_dlq_arn       = module.queues.dlq_arns["modernization"]
-  orphaned_queue_url          = module.queues.orphaned_queue_url
-  orphaned_queue_arn          = module.queues.orphaned_queue_arn
-  orphaned_dlq_arn            = module.queues.dlq_arns["orphaned"]
-  dossier_queue_url           = module.queues.dossier_queue_url
-  dossier_queue_arn           = module.queues.dossier_queue_arn
-  dossier_dlq_arn             = module.queues.dlq_arns["dossier"]
-  scan_ingestion_secret       = var.scan_ingestion_secret
   bedrock_model_id            = var.bedrock_model_id
   connect_template_url        = module.storage.connect_template_url
   scanner_account_id          = data.aws_caller_identity.current.account_id

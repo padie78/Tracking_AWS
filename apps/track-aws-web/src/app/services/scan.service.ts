@@ -2,50 +2,6 @@ import { Injectable } from '@angular/core';
 import { generateClient } from 'aws-amplify/api';
 import { authenticatedAppsyncOptions } from '../core/auth/appsync-auth.util';
 
-export interface FindingView {
-  tenantId: string;
-  scanId: string;
-  findingId: string;
-  category: string;
-  resourceArn: string;
-  resourceId: string;
-  region: string;
-  title: string;
-  rationale: string;
-  severity: string;
-  estimatedMonthlySavingsUsd: number;
-  recommendedAction: string;
-  createdAtIso: string;
-}
-
-export interface RemediationStepView {
-  order: number;
-  title: string;
-  instruction: string;
-  estimatedMinutes: number | null;
-}
-
-export interface SavingsDossierView {
-  tenantId: string;
-  dossierId: string;
-  scanId: string;
-  accountId: string;
-  title: string;
-  markdownBody: string;
-  totalEstimatedMonthlySavingsUsd: number;
-  findingIds: string[];
-  remediationSteps: RemediationStepView[];
-  createdAtIso: string;
-}
-
-export interface StartScanResultView {
-  accepted: boolean;
-  scanId: string;
-  correlationId: string;
-  tenantId: string;
-  accountId: string;
-}
-
 export interface StartAuditResultView {
   accepted: boolean;
   auditId: string;
@@ -196,40 +152,6 @@ export interface VerifyAwsAccountLinkResultView {
   verifiedAtIso: string;
 }
 
-const FINDING_FIELDS = /* GraphQL */ `
-  tenantId
-  scanId
-  findingId
-  category
-  resourceArn
-  resourceId
-  region
-  title
-  rationale
-  severity
-  estimatedMonthlySavingsUsd
-  recommendedAction
-  createdAtIso
-`;
-
-const DOSSIER_FIELDS = /* GraphQL */ `
-  tenantId
-  dossierId
-  scanId
-  accountId
-  title
-  markdownBody
-  totalEstimatedMonthlySavingsUsd
-  findingIds
-  remediationSteps {
-    order
-    title
-    instruction
-    estimatedMinutes
-  }
-  createdAtIso
-`;
-
 const ACCOUNT_FIELDS = /* GraphQL */ `
   accountId
   displayName
@@ -273,18 +195,6 @@ const START_AUDIT = /* GraphQL */ `
       auditId
       correlationId
       executionArn
-      tenantId
-      accountId
-    }
-  }
-`;
-
-const START_SCAN = /* GraphQL */ `
-  mutation StartScan($input: StartScanInput!) {
-    startScan(input: $input) {
-      accepted
-      scanId
-      correlationId
       tenantId
       accountId
     }
@@ -428,30 +338,6 @@ const LIST_AUDIT_INVENTORY = /* GraphQL */ `
   }
 `;
 
-const LIST_FINDINGS_BY_SCAN = /* GraphQL */ `
-  query ListFindingsByScan($scanId: ID!) {
-    listFindingsByScan(scanId: $scanId) {
-      ${FINDING_FIELDS}
-    }
-  }
-`;
-
-const GET_SAVINGS_DOSSIER = /* GraphQL */ `
-  query GetSavingsDossier($dossierId: ID, $scanId: ID) {
-    getSavingsDossier(dossierId: $dossierId, scanId: $scanId) {
-      ${DOSSIER_FIELDS}
-    }
-  }
-`;
-
-const GENERATE_SAVINGS_DOSSIER = /* GraphQL */ `
-  mutation GenerateSavingsDossier($input: GenerateSavingsDossierInput!) {
-    generateSavingsDossier(input: $input) {
-      ${DOSSIER_FIELDS}
-    }
-  }
-`;
-
 const LIST_ALERT_CHANNELS = /* GraphQL */ `
   query ListAlertChannels {
     listAlertChannels {
@@ -569,22 +455,6 @@ export class ScanService {
     return result.data?.listAuditInventory ?? null;
   }
 
-  async startScan(input: {
-    accountId: string;
-    regions?: string[];
-  }): Promise<StartScanResultView> {
-    const authOptions = await authenticatedAppsyncOptions();
-    const result = (await this.client.graphql({
-      query: START_SCAN,
-      variables: { input },
-      ...authOptions,
-    })) as { data?: { startScan?: StartScanResultView } };
-
-    const scan = result.data?.startScan;
-    if (!scan) throw new Error('startScan no devolvió resultado.');
-    return scan;
-  }
-
   async linkAwsAccount(input: {
     accountId: string;
     displayName?: string;
@@ -626,49 +496,6 @@ export class ScanService {
     })) as { data?: { listAwsAccounts?: AwsAccountLinkView[] } };
 
     return result.data?.listAwsAccounts ?? [];
-  }
-
-  async listFindingsByScan(scanId: string): Promise<FindingView[]> {
-    const authOptions = await authenticatedAppsyncOptions();
-    const result = (await this.client.graphql({
-      query: LIST_FINDINGS_BY_SCAN,
-      variables: { scanId },
-      ...authOptions,
-    })) as { data?: { listFindingsByScan?: FindingView[] } };
-
-    return result.data?.listFindingsByScan ?? [];
-  }
-
-  async getSavingsDossier(input: {
-    dossierId?: string;
-    scanId?: string;
-  }): Promise<SavingsDossierView | null> {
-    const authOptions = await authenticatedAppsyncOptions();
-    const result = (await this.client.graphql({
-      query: GET_SAVINGS_DOSSIER,
-      variables: {
-        dossierId: input.dossierId ?? null,
-        scanId: input.scanId ?? null,
-      },
-      ...authOptions,
-    })) as { data?: { getSavingsDossier?: SavingsDossierView | null } };
-
-    return result.data?.getSavingsDossier ?? null;
-  }
-
-  async generateSavingsDossier(input: {
-    scanId: string;
-    accountId: string;
-    roleTone?: string;
-  }): Promise<SavingsDossierView | null> {
-    const authOptions = await authenticatedAppsyncOptions();
-    const result = (await this.client.graphql({
-      query: GENERATE_SAVINGS_DOSSIER,
-      variables: { input },
-      ...authOptions,
-    })) as { data?: { generateSavingsDossier?: SavingsDossierView | null } };
-
-    return result.data?.generateSavingsDossier ?? null;
   }
 
   async listAlertChannels(): Promise<AlertChannelView[]> {

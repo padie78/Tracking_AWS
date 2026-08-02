@@ -13,6 +13,4 @@ export interface AppRuntimeEnvironment {
     oauthRedirectSignIn?: string;
     oauthRedirectSignOut?: string;
   };
-  /** HTTP endpoint POST /scan (API GW). */
-  scanIngestionUrl: string;
 }

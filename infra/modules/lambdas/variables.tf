@@ -10,80 +10,9 @@ variable "table_arn" {
   type = string
 }
 
-variable "scan_queue_url" {
-  type = string
-}
-
-variable "scan_queue_arn" {
-  type = string
-}
-
-variable "scan_dlq_arn" {
-  type    = string
-  default = ""
-}
-
-variable "rightsizing_queue_url" {
-  type = string
-}
-
-variable "rightsizing_queue_arn" {
-  type = string
-}
-
-variable "rightsizing_dlq_arn" {
-  type    = string
-  default = ""
-}
-
-variable "modernization_queue_url" {
-  type = string
-}
-
-variable "modernization_queue_arn" {
-  type = string
-}
-
-variable "modernization_dlq_arn" {
-  type    = string
-  default = ""
-}
-
-variable "orphaned_queue_url" {
-  type = string
-}
-
-variable "orphaned_queue_arn" {
-  type = string
-}
-
-variable "orphaned_dlq_arn" {
-  type    = string
-  default = ""
-}
-
-variable "dossier_queue_url" {
-  type = string
-}
-
-variable "dossier_queue_arn" {
-  type = string
-}
-
-variable "dossier_dlq_arn" {
-  type    = string
-  default = ""
-}
-
 variable "bedrock_model_id" {
   type    = string
   default = "anthropic.claude-3-haiku-20240307-v1:0"
-}
-
-variable "scan_ingestion_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
 }
 
 variable "connect_template_url" {

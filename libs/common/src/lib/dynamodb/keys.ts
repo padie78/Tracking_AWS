@@ -39,6 +39,14 @@ export const DynamoKeys = {
     return KeyPrefix.Profile;
   },
 
+  memberSk(userId: string): string {
+    return `MEMBER#${userId}`;
+  },
+
+  memberSkPrefix(): string {
+    return 'MEMBER#';
+  },
+
   accountSk(accountId: string): string {
     return `${KeyPrefix.Account}${accountId}`;
   },

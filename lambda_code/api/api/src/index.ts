@@ -17,7 +17,7 @@ import {
   deleteAlertChannel,
   verifyAwsAccountLink,
 } from './composition-root';
-import { AppSyncTypedError, requireTenantId, rethrowAsTyped } from './errors';
+import { AppSyncTypedError, requireMembership, requireCanManageConnections, requireCanRunScans, rethrowAsTyped } from './errors';
 
 type CognitoIdentity = {
   claims?: Record<string, unknown>;
@@ -117,10 +117,12 @@ async function dispatch(
   op: ResolverArgs,
   identity: CognitoIdentity | null | undefined,
 ): Promise<unknown> {
-  const tenantId = requireTenantId(identity);
+  const ctx = await requireMembership(identity);
+  const { tenantId } = ctx;
 
   switch (op.fieldName) {
     case 'startAudit': {
+      requireCanRunScans(ctx);
       const result = await startAudit.execute({
         tenantId,
         accountId: op.args.input.accountId,
@@ -137,6 +139,7 @@ async function dispatch(
     }
 
     case 'startScan': {
+      requireCanRunScans(ctx);
       const result = await enqueueInventoryScan.execute({
         tenantId,
         accountId: op.args.input.accountId,
@@ -152,6 +155,7 @@ async function dispatch(
     }
 
     case 'linkAwsAccount':
+      requireCanManageConnections(ctx);
       return linkAwsAccount.execute({
         tenantId,
         accountId: op.args.input.accountId,
@@ -161,6 +165,7 @@ async function dispatch(
       });
 
     case 'verifyAwsAccountLink':
+      requireCanManageConnections(ctx);
       return verifyAwsAccountLink.execute({
         tenantId,
         accountId: op.args.input.accountId,
@@ -222,11 +227,12 @@ async function dispatch(
     }
 
     case 'generateSavingsDossier': {
+      requireCanRunScans(ctx);
       const result = await generateSavingsDossier.execute({
         tenantId,
         scanId: op.args.input.scanId,
         accountId: op.args.input.accountId,
-        roleTone: op.args.input.roleTone ?? 'analyst',
+        roleTone: op.args.input.roleTone ?? ctx.role.value,
       });
       return getSavingsDossier.execute({
         tenantId,
@@ -238,6 +244,7 @@ async function dispatch(
       return listAlertChannels.execute(tenantId);
 
     case 'upsertAlertChannel':
+      requireCanManageConnections(ctx);
       return upsertAlertChannel.execute({
         tenantId,
         channelId: op.args.input.channelId ?? undefined,
@@ -248,6 +255,7 @@ async function dispatch(
       });
 
     case 'deleteAlertChannel': {
+      requireCanManageConnections(ctx);
       await deleteAlertChannel.execute(tenantId, op.args.channelId);
       return true;
     }

@@ -3,6 +3,8 @@
  */
 export const EntityType = {
   Tenant: 'TENANT',
+  TenantProfile: 'TENANT_PROFILE',
+  TenantMember: 'TENANT_MEMBER',
   AwsAccountLink: 'AWS_ACCOUNT_LINK',
   ScanJob: 'SCAN_JOB',
   AuditJob: 'AUDIT_JOB',

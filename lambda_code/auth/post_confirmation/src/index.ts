@@ -1,5 +1,9 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+} from '@aws-sdk/lib-dynamodb';
 import type { PostConfirmationTriggerHandler } from 'aws-lambda';
 
 const TABLE_NAME = process.env['CORE_TABLE_NAME'] ?? process.env['TABLE_NAME'] ?? '';
@@ -7,9 +11,9 @@ const TABLE_NAME = process.env['CORE_TABLE_NAME'] ?? process.env['TABLE_NAME'] ?
 const doc = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 /**
- * Bootstrap multi-tenant tras signup Cognito.
- * Espera `custom:tenant_id` y `custom:user_role` en el User Pool schema.
- * Idempotente: no sobrescribe membership existente.
+ * Bootstrap multi-tenant en Dynamo tras signup Cognito.
+ * Cognito = IdP (credenciales/JWT). Dynamo = SoT de PROFILE + MEMBER (roles).
+ * Idempotente.
  */
 export const handler: PostConfirmationTriggerHandler = async (event) => {
   if (!TABLE_NAME) {
@@ -33,14 +37,42 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
 
   const role = attrs['custom:user_role']?.trim() || 'viewer';
   const email = attrs['email'] ?? '';
+  const name =
+    attrs['name']?.trim() ||
+    attrs['custom:tenant_name']?.trim() ||
+    tenantId;
   const now = new Date().toISOString();
   const pk = `TENANT#${tenantId}`;
-  const sk = `MEMBER#${userId}`;
 
+  // PROFILE (tenant) — create-once
+  try {
+    await doc.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: {
+          PK: pk,
+          SK: 'PROFILE',
+          entityType: 'TENANT_PROFILE',
+          tenantId,
+          name,
+          plan: 'starter',
+          createdAtIso: now,
+          updatedAtIso: now,
+        },
+        ConditionExpression: 'attribute_not_exists(PK)',
+      }),
+    );
+    console.info('Tenant PROFILE creado', { tenantId });
+  } catch (err) {
+    const errName = err instanceof Error ? err.name : '';
+    if (errName !== 'ConditionalCheckFailedException') throw err;
+  }
+
+  const memberSk = `MEMBER#${userId}`;
   const existing = await doc.send(
     new GetCommand({
       TableName: TABLE_NAME,
-      Key: { PK: pk, SK: sk },
+      Key: { PK: pk, SK: memberSk },
     }),
   );
 
@@ -54,7 +86,7 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
       TableName: TABLE_NAME,
       Item: {
         PK: pk,
-        SK: sk,
+        SK: memberSk,
         entityType: 'TENANT_MEMBER',
         tenantId,
         userId,

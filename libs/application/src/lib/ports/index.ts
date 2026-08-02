@@ -7,3 +7,4 @@ export * from './dossier';
 export * from './accounts';
 export * from './audit';
 export * from './inventory';
+export * from './tenant';

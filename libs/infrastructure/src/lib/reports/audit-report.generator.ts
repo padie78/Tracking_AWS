@@ -9,6 +9,7 @@ import { DynamoKeys, EntityType } from '@track-aws/common';
 import { getDocumentClient } from '../aws/dynamodb-client.factory';
 
 export type InventorySummaryView = {
+  totalCount: number;
   ec2Count: number;
   ebsCount: number;
   eipCount: number;
@@ -232,9 +233,10 @@ export class AuditReportGenerator {
         `| EBS | ${inventory.ebsCount} | ${healthyEbs} adjuntos | ${inventory.unattachedEbsCount} sin adjuntar |`,
         `| Elastic IP | ${inventory.eipCount} | ${healthyEip} asociadas | ${inventory.idleEipCount} idle (cargo) |`,
         '',
+        inventory.totalCount === 0 &&
         inventory.ec2Count + inventory.ebsCount + inventory.eipCount === 0
           ? '_Inventario vacío o no medido en este audit._'
-          : '_Inventario efímero del motor FinOps (no se persiste raw). Contadores OK son estimados vs hallazgos._',
+          : `_Catálogo: **${inventory.totalCount || inventory.ec2Count + inventory.ebsCount + inventory.eipCount}** recursos (EC2/EBS/EIP + multi-servicio)._`,
         '',
       );
     } else {
@@ -433,7 +435,11 @@ function normalizeInventory(
   const ec2Count = Number(value.ec2Count ?? 0);
   const ebsCount = Number(value.ebsCount ?? 0);
   const eipCount = Number(value.eipCount ?? 0);
+  const totalCount = Number(
+    value.totalCount ?? ec2Count + ebsCount + eipCount,
+  );
   return {
+    totalCount,
     ec2Count,
     ebsCount,
     eipCount,

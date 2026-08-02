@@ -5,6 +5,7 @@ import type {
   AccountInventoryView,
   InventoryResourceView,
 } from '../../ports/inventory/inventory.port';
+import { summarizeInventoryResources } from '../../ports/inventory/inventory.port';
 
 const InputSchema = z.object({
   tenantId: z.string().min(1),
@@ -15,8 +16,10 @@ const InputSchema = z.object({
 function toResources(
   snapshot: Awaited<ReturnType<IAwsInventoryPort['fetchInventory']>>,
 ): InventoryResourceView[] {
+  if (snapshot.listedResources?.length) {
+    return snapshot.listedResources.map((r) => ({ ...r }));
+  }
   const resources: InventoryResourceView[] = [];
-
   for (const inst of snapshot.ec2Instances) {
     resources.push({
       resourceType: 'ec2',
@@ -87,17 +90,7 @@ export class GetAccountInventoryUseCase {
       capturedAtIso: snapshot.capturedAtIso,
       source: 'live',
       auditId: null,
-      summary: {
-        ec2Count: snapshot.ec2Instances.length,
-        ebsCount: snapshot.ebsVolumes.length,
-        eipCount: snapshot.elasticIps.length,
-        runningEc2Count: snapshot.ec2Instances.filter((i) => i.state === 'running')
-          .length,
-        stoppedEc2Count: snapshot.ec2Instances.filter((i) => i.state === 'stopped')
-          .length,
-        unattachedEbsCount: snapshot.ebsVolumes.filter((v) => !v.attached).length,
-        idleEipCount: snapshot.elasticIps.filter((e) => !e.associated).length,
-      },
+      summary: summarizeInventoryResources(resources),
       resources,
     };
   }

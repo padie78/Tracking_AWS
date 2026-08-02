@@ -104,6 +104,7 @@ type AuditFinding @aws_cognito_user_pools {
 }
 
 type InventorySummary @aws_cognito_user_pools {
+  totalCount: Int!
   ec2Count: Int!
   ebsCount: Int!
   eipCount: Int!

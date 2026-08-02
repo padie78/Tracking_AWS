@@ -82,7 +82,7 @@ export class DynamoDbAuditInventoryRepository
     );
 
     return (result.Items ?? []).map((item) => ({
-      resourceType: String(item['resourceType']) as InventoryResourceView['resourceType'],
+      resourceType: String(item['resourceType']),
       resourceId: String(item['resourceId']),
       resourceArn: String(item['resourceArn'] ?? ''),
       region: String(item['region'] ?? ''),

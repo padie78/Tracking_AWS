@@ -93,6 +93,9 @@ import { MarkdownComponent } from '../../ui/markdown/markdown.component';
               <div class="ta-card ta-card--flat" style="margin-bottom:1rem;box-shadow:none">
                 <h2 class="ta-card__title">Inventario y postura</h2>
                 <div class="ta-kpi-grid">
+                  <div class="ta-kpi"><div class="ta-kpi__label">Total</div><div class="ta-kpi__value">{{ inv.totalCount || (inv.ec2Count + inv.ebsCount + inv.eipCount) }}</div>
+                    <div class="ta-meta">recursos en resumen</div>
+                  </div>
                   <div class="ta-kpi"><div class="ta-kpi__label">EC2</div><div class="ta-kpi__value">{{ inv.ec2Count }}</div>
                     <div class="ta-meta">{{ inv.runningEc2Count }} running · {{ inv.stoppedEc2Count }} stopped</div>
                   </div>

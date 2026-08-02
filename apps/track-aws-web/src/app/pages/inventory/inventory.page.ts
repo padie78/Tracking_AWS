@@ -17,7 +17,6 @@ import {
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 
 type InventorySource = 'live' | 'audit';
-type ResourceFilter = 'all' | 'ec2' | 'ebs' | 'eip';
 
 @Component({
   standalone: true,
@@ -29,7 +28,7 @@ type ResourceFilter = 'all' | 'ec2' | 'ebs' | 'eip';
       <ta-page-header
         eyebrow="Assets"
         title="Inventario"
-        subtitle="EC2, EBS y Elastic IP de la cuenta AWS seleccionada."
+        subtitle="Catálogo multi-servicio de la cuenta AWS (EC2, S3, RDS, Lambda, IAM, ELB, …)."
       >
         <button
           type="button"
@@ -52,10 +51,10 @@ type ResourceFilter = 'all' | 'ec2' | 'ebs' | 'eip';
         <label class="ta-field">
           <span class="ta-field__label">Tipo</span>
           <select class="ta-select" [ngModel]="filter()" (ngModelChange)="filter.set($event)">
-            <option value="all">Todos</option>
-            <option value="ec2">EC2</option>
-            <option value="ebs">EBS</option>
-            <option value="eip">Elastic IP</option>
+            <option value="all">Todos ({{ inventory()?.summary?.totalCount ?? 0 }})</option>
+            @for (t of typeOptions(); track t.type) {
+              <option [value]="t.type">{{ t.type }} ({{ t.count }})</option>
+            }
           </select>
         </label>
       </div>
@@ -69,12 +68,18 @@ type ResourceFilter = 'all' | 'ec2' | 'ebs' | 'eip';
           Cuenta <code>{{ inv.accountId }}</code>
           · capturado {{ inv.capturedAtIso | date: 'medium' }}
           · fuente {{ inv.source }}
+          · {{ inv.summary.totalCount }} recursos
           @if (inv.auditId) {
             · audit <code>{{ inv.auditId }}</code>
           }
         </div>
 
         <div class="ta-kpi-grid">
+          <div class="ta-kpi">
+            <div class="ta-kpi__label">Total</div>
+            <div class="ta-kpi__value">{{ inv.summary.totalCount }}</div>
+            <div class="ta-meta">{{ typeOptions().length }} tipos</div>
+          </div>
           <div class="ta-kpi">
             <div class="ta-kpi__label">EC2</div>
             <div class="ta-kpi__value">{{ inv.summary.ec2Count }}</div>
@@ -84,20 +89,19 @@ type ResourceFilter = 'all' | 'ec2' | 'ebs' | 'eip';
             </div>
           </div>
           <div class="ta-kpi">
-            <div class="ta-kpi__label">EBS</div>
-            <div class="ta-kpi__value">{{ inv.summary.ebsCount }}</div>
-            <div class="ta-meta">{{ inv.summary.unattachedEbsCount }} unattached</div>
-          </div>
-          <div class="ta-kpi">
-            <div class="ta-kpi__label">Elastic IP</div>
-            <div class="ta-kpi__value">{{ inv.summary.eipCount }}</div>
-            <div class="ta-meta">{{ inv.summary.idleEipCount }} idle</div>
+            <div class="ta-kpi__label">EBS / EIP</div>
+            <div class="ta-kpi__value">{{ inv.summary.ebsCount + inv.summary.eipCount }}</div>
+            <div class="ta-meta">
+              {{ inv.summary.unattachedEbsCount }} EBS free ·
+              {{ inv.summary.idleEipCount }} EIP idle
+            </div>
           </div>
           <div class="ta-kpi">
             <div class="ta-kpi__label">Costo est. $/mes</div>
             <div class="ta-kpi__value ta-kpi__value--accent">
               {{ totalCost() | number: '1.0-0' }}
             </div>
+            <div class="ta-meta">filtro actual · {{ filtered().length }} filas</div>
           </div>
         </div>
 
@@ -190,10 +194,22 @@ export class InventoryPageComponent implements OnInit {
   private readonly audit = inject(AuditLiveService);
 
   readonly source = signal<InventorySource>('live');
-  readonly filter = signal<ResourceFilter>('all');
+  readonly filter = signal<string>('all');
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly inventory = signal<AccountInventoryView | null>(null);
+
+  readonly typeOptions = computed(() => {
+    const inv = this.inventory();
+    if (!inv) return [] as Array<{ type: string; count: number }>;
+    const counts = new Map<string, number>();
+    for (const r of inv.resources) {
+      counts.set(r.resourceType, (counts.get(r.resourceType) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => a.type.localeCompare(b.type));
+  });
 
   readonly filtered = computed(() => {
     const inv = this.inventory();
@@ -227,7 +243,9 @@ export class InventoryPageComponent implements OnInit {
           this.error.set('Seleccioná una cuenta AWS en el header.');
           return;
         }
-        this.inventory.set(await this.scan.getAccountInventory(accountId));
+        const inv = await this.scan.getAccountInventory(accountId);
+        this.inventory.set(inv);
+        this.resetFilterIfNeeded(inv);
         return;
       }
 
@@ -254,11 +272,20 @@ export class InventoryPageComponent implements OnInit {
         return;
       }
       this.inventory.set(fromAudit);
+      this.resetFilterIfNeeded(fromAudit);
     } catch (err) {
       this.inventory.set(null);
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  private resetFilterIfNeeded(inv: AccountInventoryView): void {
+    const f = this.filter();
+    if (f === 'all') return;
+    if (!inv.resources.some((r) => r.resourceType === f)) {
+      this.filter.set('all');
     }
   }
 }

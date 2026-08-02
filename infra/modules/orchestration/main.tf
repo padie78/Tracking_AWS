@@ -150,6 +150,7 @@ resource "aws_sfn_state_machine" "audit" {
                   finops = {
                     findings = []
                     inventorySummary = {
+                      totalCount         = 0
                       ec2Count           = 0
                       ebsCount           = 0
                       eipCount           = 0

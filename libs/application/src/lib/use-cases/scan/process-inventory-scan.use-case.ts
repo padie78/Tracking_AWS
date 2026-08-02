@@ -86,6 +86,7 @@ export class ProcessInventoryScanUseCase {
       ec2Count: inventory.ec2Instances.length,
       ebsCount: inventory.ebsVolumes.length,
       eipCount: inventory.elasticIps.length,
+      listedCount: inventory.listedResources?.length ?? 0,
     });
   }
 }

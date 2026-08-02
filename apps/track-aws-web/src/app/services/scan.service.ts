@@ -118,6 +118,7 @@ export interface AuditReportView {
   markdownBody: string;
   aiGenerated: boolean;
   inventorySummary: {
+    totalCount: number;
     ec2Count: number;
     ebsCount: number;
     eipCount: number;
@@ -136,6 +137,7 @@ export interface AuditReportView {
 }
 
 export interface InventorySummaryView {
+  totalCount: number;
   ec2Count: number;
   ebsCount: number;
   eipCount: number;
@@ -364,6 +366,7 @@ const GET_AUDIT_REPORT = /* GraphQL */ `
       markdownBody
       aiGenerated
       inventorySummary {
+        totalCount
         ec2Count
         ebsCount
         eipCount
@@ -389,6 +392,7 @@ const INVENTORY_FIELDS = /* GraphQL */ `
   source
   auditId
   summary {
+    totalCount
     ec2Count
     ebsCount
     eipCount

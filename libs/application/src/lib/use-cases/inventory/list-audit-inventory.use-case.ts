@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import type { IAuditInventoryReader } from '../../ports/inventory/inventory.port';
 import type { AccountInventoryView } from '../../ports/inventory/inventory.port';
-import type { AuditReportInventorySummary } from '../../ports/audit/audit-report.port';
+import {
+  summarizeInventoryResources,
+  type InventorySummaryView,
+} from '../../ports/inventory/inventory.port';
 import type { IAuditReportReader } from '../../ports/audit/audit-report.port';
 
 const InputSchema = z.object({
@@ -28,37 +31,25 @@ export class ListAuditInventoryUseCase {
 
     if (resources.length === 0) {
       if (!report?.inventorySummary) return null;
-      return emptyFromSummary(
-        report.accountId,
-        input.auditId,
-        report.inventorySummary,
-      );
+      const s = report.inventorySummary;
+      return emptyFromSummary(report.accountId, input.auditId, {
+        totalCount: s.totalCount ?? s.ec2Count + s.ebsCount + s.eipCount,
+        ec2Count: s.ec2Count,
+        ebsCount: s.ebsCount,
+        eipCount: s.eipCount,
+        runningEc2Count: s.runningEc2Count,
+        stoppedEc2Count: s.stoppedEc2Count,
+        unattachedEbsCount: s.unattachedEbsCount,
+        idleEipCount: s.idleEipCount,
+      });
     }
-
-    const summary = {
-      ec2Count: resources.filter((r) => r.resourceType === 'ec2').length,
-      ebsCount: resources.filter((r) => r.resourceType === 'ebs').length,
-      eipCount: resources.filter((r) => r.resourceType === 'eip').length,
-      runningEc2Count: resources.filter(
-        (r) => r.resourceType === 'ec2' && r.state === 'running',
-      ).length,
-      stoppedEc2Count: resources.filter(
-        (r) => r.resourceType === 'ec2' && r.state === 'stopped',
-      ).length,
-      unattachedEbsCount: resources.filter(
-        (r) => r.resourceType === 'ebs' && r.state === 'unattached',
-      ).length,
-      idleEipCount: resources.filter(
-        (r) => r.resourceType === 'eip' && r.state === 'idle',
-      ).length,
-    };
 
     return {
       accountId: report?.accountId ?? '',
       capturedAtIso: report?.createdAtIso ?? new Date().toISOString(),
       source: 'audit',
       auditId: input.auditId,
-      summary,
+      summary: summarizeInventoryResources(resources),
       resources,
     };
   }
@@ -67,7 +58,7 @@ export class ListAuditInventoryUseCase {
 function emptyFromSummary(
   accountId: string,
   auditId: string,
-  summary: AuditReportInventorySummary,
+  summary: InventorySummaryView,
 ): AccountInventoryView {
   return {
     accountId,

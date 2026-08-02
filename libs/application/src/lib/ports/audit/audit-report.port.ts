@@ -1,4 +1,5 @@
 export interface AuditReportInventorySummary {
+  totalCount: number;
   ec2Count: number;
   ebsCount: number;
   eipCount: number;

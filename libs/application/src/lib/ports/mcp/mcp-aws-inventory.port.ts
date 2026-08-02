@@ -1,11 +1,11 @@
-/** Métricas efímeras serializables (hop SQS); no se persisten en DynamoDB. */
+/** Métricas efímeras serializables (hop SQS); no se persisten crudos. */
 export interface InventoryUtilizationSnapshot {
   avgCpuPercent: number;
   avgMemoryPercent: number | null;
   sampleWindowDays: number;
 }
 
-/** Snapshot efímero de EC2 (nunca se persiste crudo). */
+/** Snapshot efímero de EC2 (FinOps / rightsizing). */
 export interface InventoryEc2InstanceSnapshot {
   instanceId: string;
   instanceArn: string;
@@ -33,12 +33,25 @@ export interface InventoryElasticIpSnapshot {
   estimatedMonthlyCostUsd: number;
 }
 
+/** Recurso genérico del catálogo multi-servicio. */
+export interface InventoryListedResourceSnapshot {
+  resourceType: string;
+  resourceId: string;
+  resourceArn: string;
+  region: string;
+  state: string;
+  detail: string;
+  estimatedMonthlyCostUsd: number;
+}
+
 export interface AwsInventorySnapshot {
   accountId: string;
   capturedAtIso: string;
   ec2Instances: InventoryEc2InstanceSnapshot[];
   ebsVolumes: InventoryEbsVolumeSnapshot[];
   elasticIps: InventoryElasticIpSnapshot[];
+  /** Catálogo amplio (incluye EC2/EBS/EIP + S3/RDS/Lambda/…). */
+  listedResources: InventoryListedResourceSnapshot[];
 }
 
 /** @deprecated Usar nombres Inventory* — alias de compatibilidad. */

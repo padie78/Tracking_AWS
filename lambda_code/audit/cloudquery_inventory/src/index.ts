@@ -102,7 +102,14 @@ export const handler: Handler<AuditPayload> = async (event) => {
       auditId: event.auditId,
       correlationId: event.correlationId,
       schema: INFRACOST_PARQUET_SCHEMA,
-      rows: infracostLines,
+      rows: infracostLines.map((line) => ({
+        project_name: line.project_name,
+        resource_name: line.resource_name,
+        resource_type: line.resource_type,
+        monthly_cost_usd: line.monthly_cost_usd,
+        hourly_cost_usd: line.hourly_cost_usd,
+        currency: line.currency,
+      })),
     });
     infracostParquetUri = infracostWritten.s3Uri;
     console.info('infracost parquet written', {

@@ -463,7 +463,14 @@ async function writeHistoricalParquetArtifacts(input: {
       ...base,
       engine: 'infracost',
       schema: INFRACOST_PARQUET_SCHEMA,
-      rows: input.infracostLines,
+      rows: input.infracostLines.map((line) => ({
+        project_name: line.project_name,
+        resource_name: line.resource_name,
+        resource_type: line.resource_type,
+        monthly_cost_usd: line.monthly_cost_usd,
+        hourly_cost_usd: line.hourly_cost_usd,
+        currency: line.currency,
+      })),
     });
     out.infracost = infracost.s3Uri;
   } catch (err) {

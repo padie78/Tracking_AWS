@@ -4,8 +4,8 @@
 |----------|---------|----------|
 | `deploy-infra.yml` | push en `infra/**` o manual | Terraform apply |
 | `deploy-lambdas.yml` | push en `lambda_code/**` / `libs/**`, tras infra OK, o manual | esbuild + `update-function-code` |
-| `deploy-scanner-images.yml` | push en `integrations/{prowler,trivy}-fargate/**`, tras infra, o manual | Docker build/push ECR Prowler+Trivy |
-| `deploy-prowler-image.yml` | legacy (Prowler only); prefer `deploy-scanner-images.yml` | Docker build/push Prowler ECR |
+| `deploy-prowler-image.yml` | push en `integrations/prowler-fargate/**`, tras infra, o manual | Docker build/push ECR Prowler |
+| `deploy-trivy-image.yml` | push en `integrations/trivy-fargate/**`, tras infra, o manual | Docker build/push ECR Trivy |
 | `deploy-frontend.yml` | push en `apps/track-aws-web/**` o manual | build Angular + S3 + CloudFront |
 
 ## Secrets y variables
@@ -48,7 +48,7 @@ cd infra/bootstrap && terraform output -raw state_bucket
 2. Configurar OIDC + secret AWS_DEPLOY_ROLE_ARN
 3. Variables TF_STATE_* en GitHub
 4. workflow_dispatch → Deploy Infrastructure
-5. Deploy Prowler Image (ECR → Fargate task) — obligatorio antes del primer audit
+5. Deploy Prowler Image + Deploy Trivy Image (ECR → Fargate) — antes del primer audit
 6. Deploy Lambdas (auto tras infra, o manual)
 7. workflow_dispatch → Deploy Frontend
 ```

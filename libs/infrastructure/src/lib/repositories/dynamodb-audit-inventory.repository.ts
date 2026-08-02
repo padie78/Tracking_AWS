@@ -33,20 +33,23 @@ export class DynamoDbAuditInventoryRepository
     const pk = DynamoKeys.auditFindingsPk(input.tenantId, input.auditId);
     const ttl = auditDetailTtlEpochSeconds();
 
-    const chunks: InventoryResourceView[][] = [];
-    for (let i = 0; i < input.resources.length; i += 25) {
-      chunks.push(input.resources.slice(i, i + 25));
+    // BatchWrite rechaza keys duplicadas en el mismo request.
+    const bySk = new Map<string, InventoryResourceView>();
+    for (const r of input.resources) {
+      bySk.set(DynamoKeys.resourceSk(r.resourceType, r.region, r.resourceId), r);
     }
+    const unique = [...bySk.entries()];
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < unique.length; i += 25) {
+      const chunk = unique.slice(i, i + 25);
       await this.doc.send(
         new BatchWriteCommand({
           RequestItems: {
-            [table]: chunk.map((r) => ({
+            [table]: chunk.map(([sk, r]) => ({
               PutRequest: {
                 Item: {
                   PK: pk,
-                  SK: DynamoKeys.resourceSk(r.resourceType, r.resourceId),
+                  SK: sk,
                   entityType: EntityType.InventoryResource,
                   tenantId: input.tenantId,
                   auditId: input.auditId,

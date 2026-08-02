@@ -107,8 +107,13 @@ export const DynamoKeys = {
     return KeyPrefix.Alert;
   },
 
-  resourceSk(resourceType: string, resourceId: string): string {
-    return `${KeyPrefix.Resource}${resourceType}#${resourceId}`;
+  /**
+   * Inventario hot: incluye región para evitar colisiones
+   * (mismo nombre Lambda/DDB/ECS en varias regiones o clusters).
+   */
+  resourceSk(resourceType: string, region: string, resourceId: string): string {
+    const safeRegion = region.trim() || 'global';
+    return `${KeyPrefix.Resource}${resourceType}#${safeRegion}#${resourceId}`;
   },
 
   resourceSkPrefix(resourceType?: string): string {

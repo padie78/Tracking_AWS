@@ -139,11 +139,16 @@ export class DynamoDbAuditFindingRepository
 
   async saveMany(findings: AuditFinding[]): Promise<void> {
     if (!findings.length) return;
-    const chunks: AuditFinding[][] = [];
-    for (let i = 0; i < findings.length; i += 25) {
-      chunks.push(findings.slice(i, i + 25));
+
+    // BatchWrite rechaza PK+SK duplicados en el mismo request.
+    const bySk = new Map<string, AuditFinding>();
+    for (const f of findings) {
+      bySk.set(DynamoKeys.findingSk(f.domain, f.findingId), f);
     }
-    for (const chunk of chunks) {
+    const unique = [...bySk.values()];
+
+    for (let i = 0; i < unique.length; i += 25) {
+      const chunk = unique.slice(i, i + 25);
       await this.doc.send(
         new BatchWriteCommand({
           RequestItems: {

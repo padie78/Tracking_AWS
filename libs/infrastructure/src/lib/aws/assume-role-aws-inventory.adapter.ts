@@ -595,9 +595,11 @@ export class AssumeRoleAwsInventoryAdapter implements IAwsInventoryPort {
           new DescribeServicesCommand({ cluster: clusterArn, services: chunk }),
         );
         for (const svc of described.services ?? []) {
+          const serviceName = svc.serviceName ?? 'unknown';
           out.push({
             resourceType: 'ecs-service',
-            resourceId: svc.serviceName ?? 'unknown',
+            // Nombre solo no es único entre clusters de la misma región.
+            resourceId: `${clusterName}/${serviceName}`,
             resourceArn: svc.serviceArn ?? '',
             region,
             state: svc.status ?? 'ACTIVE',

@@ -18,3 +18,5 @@ export * from './lib/alerts/eventbridge-critical-alert.publisher';
 export * from './lib/repositories/dynamodb-alert-channel.repository';
 export * from './lib/reports/audit-report.generator';
 export * from './lib/storage/historical-parquet.writer';
+export * from './lib/retention/hot-retention';
+export * from './lib/retention/audit-hot-retention.pruner';

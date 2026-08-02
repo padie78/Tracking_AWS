@@ -9,6 +9,7 @@ import type {
   InventoryResourceView,
 } from '@track-aws/application';
 import { getDocumentClient } from '../aws/dynamodb-client.factory';
+import { auditDetailTtlEpochSeconds } from '../retention/hot-retention';
 
 function requireTable(): string {
   const name = process.env['CORE_TABLE_NAME'];
@@ -30,6 +31,7 @@ export class DynamoDbAuditInventoryRepository
     if (input.resources.length === 0) return;
     const table = requireTable();
     const pk = DynamoKeys.auditFindingsPk(input.tenantId, input.auditId);
+    const ttl = auditDetailTtlEpochSeconds();
 
     const chunks: InventoryResourceView[][] = [];
     for (let i = 0; i < input.resources.length; i += 25) {
@@ -56,6 +58,7 @@ export class DynamoDbAuditInventoryRepository
                   state: r.state,
                   detail: r.detail,
                   estimatedMonthlyCostUsd: r.estimatedMonthlyCostUsd,
+                  ttl,
                 },
               },
             })),
@@ -63,6 +66,47 @@ export class DynamoDbAuditInventoryRepository
         }),
       );
     }
+  }
+
+  async deleteByAudit(tenantId: string, auditId: string): Promise<number> {
+    const table = requireTable();
+    const pk = DynamoKeys.auditFindingsPk(tenantId, auditId);
+    let deleted = 0;
+    let exclusiveStartKey: Record<string, unknown> | undefined;
+
+    do {
+      const page = await this.doc.send(
+        new QueryCommand({
+          TableName: table,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+          ExpressionAttributeValues: {
+            ':pk': pk,
+            ':sk': DynamoKeys.resourceSkPrefix(),
+          },
+          ProjectionExpression: 'PK, SK',
+          ExclusiveStartKey: exclusiveStartKey,
+        }),
+      );
+      const keys = (page.Items ?? []) as Array<{ PK: string; SK: string }>;
+      for (let i = 0; i < keys.length; i += 25) {
+        const chunk = keys.slice(i, i + 25);
+        await this.doc.send(
+          new BatchWriteCommand({
+            RequestItems: {
+              [table]: chunk.map((k) => ({
+                DeleteRequest: { Key: { PK: k.PK, SK: k.SK } },
+              })),
+            },
+          }),
+        );
+        deleted += chunk.length;
+      }
+      exclusiveStartKey = page.LastEvaluatedKey as
+        | Record<string, unknown>
+        | undefined;
+    } while (exclusiveStartKey);
+
+    return deleted;
   }
 
   async listByAudit(

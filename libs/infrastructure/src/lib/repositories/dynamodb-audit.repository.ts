@@ -14,6 +14,10 @@ import type {
   IAuditFindingWriter,
 } from '@track-aws/application';
 import { DynamoKeys, EntityType } from '@track-aws/common';
+import {
+  auditDetailTtlEpochSeconds,
+  auditJobTtlEpochSeconds,
+} from '../retention/hot-retention';
 import { getDocumentClient } from '../aws/dynamodb-client.factory';
 
 function tableName(): string {
@@ -50,6 +54,7 @@ export class DynamoDbAuditJobRepository
           globalScore: audit.globalScore,
           pillarScores: audit.pillarScores,
           errorMessage: audit.errorMessage,
+          ttl: auditJobTtlEpochSeconds(),
         },
       }),
     );
@@ -163,6 +168,7 @@ export class DynamoDbAuditFindingRepository
                   estimatedMonthlySavingsUsd: f.estimatedMonthlySavingsUsd,
                   checkId: f.checkId,
                   createdAtIso: f.createdAtIso,
+                  ttl: auditDetailTtlEpochSeconds(),
                   GSI1PK: DynamoKeys.categoryGsi1Pk(
                     f.tenantId,
                     f.domain === 'finops'
@@ -179,6 +185,15 @@ export class DynamoDbAuditFindingRepository
         }),
       );
     }
+  }
+
+  async deleteByAudit(tenantId: string, auditId: string): Promise<number> {
+    return deletePartitionItems(
+      this.doc,
+      tableName(),
+      DynamoKeys.auditFindingsPk(tenantId, auditId),
+      DynamoKeys.findingSkPrefix(),
+    );
   }
 
   async listByAudit(
@@ -231,4 +246,50 @@ export class DynamoDbAuditFindingRepository
       }),
     );
   }
+}
+
+async function deletePartitionItems(
+  doc: ReturnType<typeof getDocumentClient>,
+  table: string,
+  pk: string,
+  skPrefix: string,
+): Promise<number> {
+  let deleted = 0;
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+
+  do {
+    const page = await doc.send(
+      new QueryCommand({
+        TableName: table,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: {
+          ':pk': pk,
+          ':sk': skPrefix,
+        },
+        ProjectionExpression: 'PK, SK',
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+
+    const keys = (page.Items ?? []) as Array<{ PK: string; SK: string }>;
+    for (let i = 0; i < keys.length; i += 25) {
+      const chunk = keys.slice(i, i + 25);
+      await doc.send(
+        new BatchWriteCommand({
+          RequestItems: {
+            [table]: chunk.map((k) => ({
+              DeleteRequest: { Key: { PK: k.PK, SK: k.SK } },
+            })),
+          },
+        }),
+      );
+      deleted += chunk.length;
+    }
+
+    exclusiveStartKey = page.LastEvaluatedKey as
+      | Record<string, unknown>
+      | undefined;
+  } while (exclusiveStartKey);
+
+  return deleted;
 }

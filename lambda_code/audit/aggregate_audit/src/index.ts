@@ -8,6 +8,7 @@ import {
 } from '@track-aws/domain';
 import {
   AppSyncAuditEventPublisherAdapter,
+  AuditHotRetentionPruner,
   AuditReportGenerator,
   CustomerAuditDigestPublisher,
   DynamoDbAuditFindingRepository,
@@ -404,6 +405,23 @@ export const handler: Handler<Input> = async (event) => {
     infracostLines,
   });
 
+  let hotRetention: {
+    prunedAudits: string[];
+    deletedFindings: number;
+    deletedResources: number;
+  } | null = null;
+  try {
+    hotRetention = await new AuditHotRetentionPruner().prune({
+      tenantId: event.tenantId,
+      keepAuditId: event.auditId,
+    });
+    console.info('audit hot retention prune', hotRetention);
+  } catch (err) {
+    console.error('audit hot retention prune failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return {
     auditId: completed.auditId,
     status: completed.status,
@@ -420,6 +438,7 @@ export const handler: Handler<Input> = async (event) => {
     appsecFindingCount: appsecFindings.length,
     infracostLineCount: infracostLines.length,
     historicalParquet: historicalUris,
+    hotRetention,
   };
 };
 

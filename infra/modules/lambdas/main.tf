@@ -34,6 +34,9 @@ locals {
     AUDIT_ALERTS_TOPIC_ARN  = var.audit_alerts_topic_arn
     REPORTS_BUCKET_NAME     = var.reports_bucket_name
     DATA_LAKE_BUCKET_NAME   = var.data_lake_bucket_name
+    AUDIT_DETAIL_TTL_DAYS   = "14"
+    AUDIT_JOB_TTL_DAYS      = "90"
+    AUDIT_HOT_KEEP_COUNT    = "3"
   }
 }
 

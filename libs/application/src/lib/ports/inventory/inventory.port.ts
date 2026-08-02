@@ -36,6 +36,8 @@ export interface IAuditInventoryWriter {
     accountId: string;
     resources: InventoryResourceView[];
   }): Promise<void>;
+  /** Borra inventario hot de un audit (histórico → Parquet). */
+  deleteByAudit(tenantId: string, auditId: string): Promise<number>;
 }
 
 export interface IAuditInventoryReader {

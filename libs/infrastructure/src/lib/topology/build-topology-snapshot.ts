@@ -85,10 +85,50 @@ function healthFor(
   return 'healthy';
 }
 
+/**
+ * Nombre legible para el grafo (nunca ARN completo).
+ * Ej: "lambda · orders-api", "sg · web-tier".
+ */
+export function friendlyNodeLabel(input: {
+  resourceType: string;
+  resourceId: string;
+  resourceArn?: string;
+  detail?: string;
+}): string {
+  const type = (input.resourceType || 'resource').trim() || 'resource';
+  let name = (input.resourceId || '').trim();
+
+  // Si el id es un ARN o basura larga, sacar el último segmento.
+  if (!name || name.startsWith('arn:') || name.length > 64) {
+    const arn = (input.resourceArn || '').trim();
+    if (arn.startsWith('arn:')) {
+      const tail = arn.split('/').pop() ?? arn.split(':').pop() ?? type;
+      name = tail;
+    } else {
+      name = type;
+    }
+  }
+
+  // ecs-service: cluster/service → service
+  if (type === 'ecs-service' && name.includes('/')) {
+    name = name.split('/').pop() ?? name;
+  }
+
+  // Detail a veces trae nombre humano (ej. "my-bucket · …") — no lo usamos si es ruido.
+  if (name.length > 24) {
+    name = `${name.slice(0, 11)}…${name.slice(-9)}`;
+  }
+
+  return `${type} · ${name}`;
+}
+
 function shortLabel(r: InventoryResourceView): string {
-  const id = r.resourceId || r.resourceType;
-  if (id.length <= 28) return id;
-  return `${id.slice(0, 12)}…${id.slice(-10)}`;
+  return friendlyNodeLabel({
+    resourceType: r.resourceType,
+    resourceId: r.resourceId,
+    resourceArn: r.resourceArn,
+    detail: r.detail,
+  });
 }
 
 function healthRank(h: NodeHealth): number {

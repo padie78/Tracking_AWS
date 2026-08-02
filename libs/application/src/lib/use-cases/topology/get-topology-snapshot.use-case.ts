@@ -64,8 +64,12 @@ export class GetTopologySnapshotUseCase {
       input.tenantId,
       focus.auditId,
     );
-    // Snapshots viejos sin edges: regenerar.
-    if (cached && cached.edges.length > 0) {
+    // Snapshots con labels viejos (ARN): regenerar.
+    const labelsLookLikeArn =
+      cached?.nodes.some(
+        (n) => n.label.startsWith('arn:') || n.label.includes(':aws:'),
+      ) ?? false;
+    if (cached && cached.edges.length > 0 && !labelsLookLikeArn) {
       return { ...cached, source: 'cache' };
     }
 

@@ -108,6 +108,28 @@ function categoryName(computeClass: string): string {
   }
 }
 
+/** Evita mostrar ARN como etiqueta en el canvas. */
+function displayLabel(n: TopologyNodeView): string {
+  const raw = (n.label || '').trim();
+  if (raw && !raw.startsWith('arn:') && !raw.includes(':aws:')) {
+    // Ya viene amigable (overview "lambda ×42" o "lambda · name").
+    if (raw.includes(' · ') || raw.includes(' ×')) return raw;
+  }
+
+  let name = raw;
+  if (!name || name.startsWith('arn:') || name.includes(':aws:') || name.length > 48) {
+    const fromId = n.id.startsWith('arn:')
+      ? (n.id.split('/').pop() ?? n.id.split(':').pop() ?? n.resourceType)
+      : n.id;
+    name = fromId;
+  }
+  if (n.resourceType === 'ecs-service' && name.includes('/')) {
+    name = name.split('/').pop() ?? name;
+  }
+  if (name.length > 24) name = `${name.slice(0, 11)}…${name.slice(-9)}`;
+  return `${n.resourceType} · ${name}`;
+}
+
 /** Agrupa por tipo → pocos nodos legibles. */
 function buildOverview(snap: TopologySnapshotView): {
   nodes: TopologyNodeView[];
@@ -402,13 +424,21 @@ export class TopologyGraphComponent {
           }
           if (raw.dataType !== 'node' || !raw.data) return '';
           const n = raw.data;
+          const title = displayLabel(n);
+          const arn =
+            n.id.startsWith('arn:') && !n.id.startsWith('agg:')
+              ? n.id
+              : null;
           return [
-            `<strong>${n.label}</strong>`,
+            `<strong>${title}</strong>`,
             `${n.resourceType} · ${categoryName(n.computeClass)}`,
             n.region !== 'multi' ? `${n.region} · ${n.state}` : 'agregado',
             `salud: ${n.health}`,
             `~$${Math.round(n.estimatedMonthlyCostUsd)}/mes`,
-          ].join('<br/>');
+            arn ? `<span style="opacity:.75">ARN: ${arn}</span>` : '',
+          ]
+            .filter(Boolean)
+            .join('<br/>');
         },
       },
       legend: [{ data: categories.map((c) => c.name), bottom: 0 }],
@@ -442,26 +472,35 @@ export class TopologyGraphComponent {
                 edgeLength: [80, 160],
                 gravity: 0.12,
               },
-          data: view.nodes.map((n) => ({
-            id: n.id,
-            name: n.label,
-            category: categoryIndex(n.computeClass),
-            symbolSize: Math.max(
-              18,
-              Math.min(
-                this.mode() === 'overview' ? 44 : 32,
-                16 + Math.sqrt(Math.max(n.estimatedMonthlyCostUsd, n.label.includes('×') ? 40 : 1)),
+          data: view.nodes.map((n) => {
+            const label = displayLabel(n);
+            return {
+              id: n.id,
+              name: label,
+              category: categoryIndex(n.computeClass),
+              symbolSize: Math.max(
+                18,
+                Math.min(
+                  this.mode() === 'overview' ? 44 : 32,
+                  16 +
+                    Math.sqrt(
+                      Math.max(
+                        n.estimatedMonthlyCostUsd,
+                        label.includes('×') ? 40 : 1,
+                      ),
+                    ),
+                ),
               ),
-            ),
-            itemStyle: { color: healthColor(n.health) },
-            label: n.label,
-            resourceType: n.resourceType,
-            computeClass: n.computeClass,
-            region: n.region,
-            state: n.state,
-            health: n.health,
-            estimatedMonthlyCostUsd: n.estimatedMonthlyCostUsd,
-          })),
+              itemStyle: { color: healthColor(n.health) },
+              label,
+              resourceType: n.resourceType,
+              computeClass: n.computeClass,
+              region: n.region,
+              state: n.state,
+              health: n.health,
+              estimatedMonthlyCostUsd: n.estimatedMonthlyCostUsd,
+            };
+          }),
           links: view.edges.map((e) => ({
             source: e.source,
             target: e.target,

@@ -17,3 +17,5 @@ export * from './lib/repositories/dynamodb-tenant-membership.repository';
 export * from './lib/storage/historical-parquet.writer';
 export * from './lib/retention/hot-retention';
 export * from './lib/retention/audit-hot-retention.pruner';
+export * from './lib/topology/build-topology-snapshot';
+export * from './lib/repositories/dynamodb-topology-snapshot.repository';

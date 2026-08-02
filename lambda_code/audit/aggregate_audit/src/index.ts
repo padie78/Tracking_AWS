@@ -10,10 +10,12 @@ import {
   AppSyncAuditEventPublisherAdapter,
   AuditHotRetentionPruner,
   AuditReportGenerator,
+  buildTopologySnapshot,
   CustomerAuditDigestPublisher,
   DynamoDbAuditFindingRepository,
   DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
+  DynamoDbTopologySnapshotRepository,
   estimateInfracostFromInventory,
   HistoricalParquetWriter,
   INFRACOST_PARQUET_SCHEMA,
@@ -319,6 +321,28 @@ export const handler: Handler<Input> = async (event) => {
   );
 
   await findingRepo.saveMany(findings);
+
+  try {
+    const topology = buildTopologySnapshot({
+      tenantId: event.tenantId,
+      accountId: event.accountId,
+      auditId: event.auditId,
+      capturedAtIso: new Date().toISOString(),
+      source: 'derived',
+      resources: inventoryResources,
+      findings: findings.map((f) => ({
+        findingId: f.findingId,
+        severity: f.severity,
+        resourceArn: f.resourceArn,
+        resourceId: f.resourceId,
+      })),
+    });
+    await new DynamoDbTopologySnapshotRepository().save(topology);
+  } catch (err) {
+    console.warn('TopologySnapshot persist falló (no bloquea audit)', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   const criticalCount = findings.filter((f) => f.severity === 'CRITICAL').length;
   const highCount = findings.filter((f) => f.severity === 'HIGH').length;

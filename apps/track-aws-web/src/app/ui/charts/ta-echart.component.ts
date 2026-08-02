@@ -9,7 +9,7 @@ import {
   input,
 } from '@angular/core';
 import * as echarts from 'echarts/core';
-import { BarChart, GaugeChart, LineChart, PieChart, RadarChart } from 'echarts/charts';
+import { BarChart, GaugeChart, GraphChart, LineChart, PieChart, RadarChart } from 'echarts/charts';
 import {
   GridComponent,
   LegendComponent,
@@ -22,6 +22,7 @@ import type { EChartsCoreOption, EChartsType } from 'echarts/core';
 echarts.use([
   BarChart,
   GaugeChart,
+  GraphChart,
   LineChart,
   PieChart,
   RadarChart,

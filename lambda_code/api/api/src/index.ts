@@ -3,6 +3,7 @@ import {
   getAccountInventory,
   getAudits,
   getAuditReport,
+  getTopologySnapshot,
   linkAwsAccount,
   listAlertChannels,
   listAuditFindings,
@@ -73,6 +74,10 @@ type ResolverArgs =
   | {
       fieldName: 'listAuditInventory';
       args: { auditId: string };
+    }
+  | {
+      fieldName: 'getTopologySnapshot';
+      args: { accountId: string; auditId?: string | null };
     }
   | { fieldName: 'listAlertChannels'; args: Record<string, never> }
   | {
@@ -165,6 +170,13 @@ async function dispatch(
       return listAuditInventory.execute({
         tenantId,
         auditId: op.args.auditId,
+      });
+
+    case 'getTopologySnapshot':
+      return getTopologySnapshot.execute({
+        tenantId,
+        accountId: op.args.accountId,
+        auditId: op.args.auditId ?? undefined,
       });
 
     case 'listAlertChannels':

@@ -2,6 +2,7 @@ import {
   GetAccountInventoryUseCase,
   GetAuditUseCase,
   GetAuditReportUseCase,
+  GetTopologySnapshotUseCase,
   LinkAwsAccountUseCase,
   ListAlertChannelsUseCase,
   ListAuditFindingsUseCase,
@@ -16,12 +17,14 @@ import {
   AppSyncAuditEventPublisherAdapter,
   AssumeRoleAwsInventoryAdapter,
   AuditReportGenerator,
+  buildTopologySnapshot,
   ConsoleLogger,
   DynamoDbAlertChannelRepository,
   DynamoDbAuditFindingRepository,
   DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
   DynamoDbAwsAccountLinkRepository,
+  DynamoDbTopologySnapshotRepository,
   StepFunctionsAuditOrchestratorAdapter,
   UuidGenerator,
 } from '@track-aws/infrastructure';
@@ -33,6 +36,7 @@ const auditJobRepository = new DynamoDbAuditJobRepository();
 const auditFindingRepository = new DynamoDbAuditFindingRepository();
 const alertChannelRepository = new DynamoDbAlertChannelRepository();
 const awsInventory = new AssumeRoleAwsInventoryAdapter();
+const topologyRepository = new DynamoDbTopologySnapshotRepository();
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -70,6 +74,14 @@ export const listAuditInventory = new ListAuditInventoryUseCase(
   auditInventoryRepository,
   new AuditReportGenerator(),
 );
+
+export const getTopologySnapshot = new GetTopologySnapshotUseCase({
+  audits: auditJobRepository,
+  inventory: auditInventoryRepository,
+  findings: auditFindingRepository,
+  topology: topologyRepository,
+  build: buildTopologySnapshot,
+});
 
 export const linkAwsAccount = new LinkAwsAccountUseCase({
   accountLinks: accountLinkRepository,

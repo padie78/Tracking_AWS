@@ -122,6 +122,41 @@ export interface AccountInventoryView {
   resources: InventoryResourceView[];
 }
 
+export interface TopologySnapshotView {
+  tenantId: string;
+  accountId: string;
+  auditId: string;
+  asOfIso: string;
+  capturedAtIso: string;
+  source: string;
+  summary: {
+    nodeCount: number;
+    edgeCount: number;
+    serverlessCount: number;
+    nonServerlessCount: number;
+    criticalNodeCount: number;
+  };
+  nodes: Array<{
+    id: string;
+    label: string;
+    resourceType: string;
+    computeClass: string;
+    region: string;
+    state: string;
+    health: string;
+    estimatedMonthlyCostUsd: number;
+    meta?: { findingIds?: string[] | null } | null;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    kind: string;
+    label?: string | null;
+    bidirectional?: boolean | null;
+  }>;
+}
+
 export interface AwsAccountLinkView {
   accountId: string;
   displayName: string;
@@ -338,6 +373,47 @@ const LIST_AUDIT_INVENTORY = /* GraphQL */ `
   }
 `;
 
+const GET_TOPOLOGY_SNAPSHOT = /* GraphQL */ `
+  query GetTopologySnapshot($accountId: String!, $auditId: ID) {
+    getTopologySnapshot(accountId: $accountId, auditId: $auditId) {
+      tenantId
+      accountId
+      auditId
+      asOfIso
+      capturedAtIso
+      source
+      summary {
+        nodeCount
+        edgeCount
+        serverlessCount
+        nonServerlessCount
+        criticalNodeCount
+      }
+      nodes {
+        id
+        label
+        resourceType
+        computeClass
+        region
+        state
+        health
+        estimatedMonthlyCostUsd
+        meta {
+          findingIds
+        }
+      }
+      edges {
+        id
+        source
+        target
+        kind
+        label
+        bidirectional
+      }
+    }
+  }
+`;
+
 const LIST_ALERT_CHANNELS = /* GraphQL */ `
   query ListAlertChannels {
     listAlertChannels {
@@ -453,6 +529,22 @@ export class ScanService {
       ...authOptions,
     })) as { data?: { listAuditInventory?: AccountInventoryView | null } };
     return result.data?.listAuditInventory ?? null;
+  }
+
+  async getTopologySnapshot(input: {
+    accountId: string;
+    auditId?: string;
+  }): Promise<TopologySnapshotView | null> {
+    const authOptions = await authenticatedAppsyncOptions();
+    const result = (await this.client.graphql({
+      query: GET_TOPOLOGY_SNAPSHOT,
+      variables: {
+        accountId: input.accountId,
+        auditId: input.auditId ?? null,
+      },
+      ...authOptions,
+    })) as { data?: { getTopologySnapshot?: TopologySnapshotView | null } };
+    return result.data?.getTopologySnapshot ?? null;
   }
 
   async linkAwsAccount(input: {

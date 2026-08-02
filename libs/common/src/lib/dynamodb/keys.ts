@@ -95,6 +95,10 @@ export const DynamoKeys = {
     return `${KeyPrefix.Report}${reportId}`;
   },
 
+  topologySk(auditId: string): string {
+    return `TOPOLOGY#${auditId}`;
+  },
+
   subscriptionSk(): string {
     return KeyPrefix.Subscription;
   },

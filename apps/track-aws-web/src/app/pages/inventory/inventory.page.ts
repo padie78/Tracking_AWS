@@ -4,6 +4,7 @@ import {
   OnInit,
   ViewEncapsulation,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -13,8 +14,10 @@ import { TenantContextService } from '../../core/tenant/tenant-context.service';
 import {
   AccountInventoryView,
   ScanService,
+  TopologySnapshotView,
 } from '../../services/scan.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
+import { TopologyGraphComponent } from '../../ui/topology/topology-graph.component';
 
 type InventorySource = 'live' | 'audit';
 
@@ -22,13 +25,19 @@ type InventorySource = 'live' | 'audit';
   standalone: true,
   selector: 'app-inventory-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [DatePipe, DecimalPipe, FormsModule, PageHeaderComponent],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    FormsModule,
+    PageHeaderComponent,
+    TopologyGraphComponent,
+  ],
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
         eyebrow="Assets"
         title="Inventario"
-        subtitle="Catálogo multi-servicio de la cuenta AWS (EC2, S3, RDS, Lambda, IAM, ELB, …)."
+        subtitle="Catálogo multi-servicio y mapa topológico (salud GREEN / YELLOW / RED)."
       >
         <button
           type="button"
@@ -61,6 +70,24 @@ type InventorySource = 'live' | 'audit';
 
       @if (error()) {
         <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
+      }
+
+      @if (topology(); as topo) {
+        <div class="ta-card" style="margin-bottom:1rem">
+          <div class="ta-card__title" style="margin-bottom:0.35rem">
+            Mapa topológico
+          </div>
+          <div class="ta-meta" style="margin-bottom:0.75rem">
+            audit <code>{{ topo.auditId.slice(0, 8) }}…</code>
+            · {{ topo.summary.nodeCount }} nodos
+            · {{ topo.summary.edgeCount }} edges
+            · serverless {{ topo.summary.serverlessCount }}
+            · no-serverless {{ topo.summary.nonServerlessCount }}
+            · critical {{ topo.summary.criticalNodeCount }}
+            · fuente {{ topo.source }}
+          </div>
+          <ta-topology-graph [snapshot]="topo" />
+        </div>
       }
 
       @if (inventory(); as inv) {
@@ -143,7 +170,7 @@ type InventorySource = 'live' | 'audit';
         <div class="ta-card">
           <p class="ta-meta" style="margin:0">
             Seleccioná una cuenta activa en el header y pulsá Actualizar.
-            Para fuente “audit”, necesitás un audit completed (idealmente nuevo tras el deploy).
+            El mapa topológico usa el último audit completed (Dynamo).
           </p>
         </div>
       }
@@ -185,6 +212,10 @@ type InventorySource = 'live' | 'audit';
       .ta-table code {
         font-size: 0.82rem;
       }
+      .ta-card__title {
+        font-weight: 650;
+        font-size: 1rem;
+      }
     `,
   ],
 })
@@ -193,11 +224,12 @@ export class InventoryPageComponent implements OnInit {
   private readonly tenant = inject(TenantContextService);
   private readonly audit = inject(AuditLiveService);
 
-  readonly source = signal<InventorySource>('live');
+  readonly source = signal<InventorySource>('audit');
   readonly filter = signal<string>('all');
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly inventory = signal<AccountInventoryView | null>(null);
+  readonly topology = signal<TopologySnapshotView | null>(null);
 
   readonly typeOptions = computed(() => {
     const inv = this.inventory();
@@ -223,6 +255,15 @@ export class InventoryPageComponent implements OnInit {
     this.filtered().reduce((acc, r) => acc + (r.estimatedMonthlyCostUsd || 0), 0),
   );
 
+  constructor() {
+    effect(() => {
+      const st = this.audit.liveStatus();
+      if (st?.status === 'completed') {
+        void this.refreshTopology(st.accountId, st.auditId);
+      }
+    });
+  }
+
   ngOnInit(): void {
     void this.refresh();
   }
@@ -236,27 +277,30 @@ export class InventoryPageComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     try {
+      const accountId = this.tenant.activeAccountId();
+      if (!accountId) {
+        this.inventory.set(null);
+        this.topology.set(null);
+        this.error.set('Seleccioná una cuenta AWS en el header.');
+        return;
+      }
+
+      await this.refreshTopology(accountId);
+
       if (this.source() === 'live') {
-        const accountId = this.tenant.activeAccountId();
-        if (!accountId) {
-          this.inventory.set(null);
-          this.error.set('Seleccioná una cuenta AWS en el header.');
-          return;
-        }
         const inv = await this.scan.getAccountInventory(accountId);
         this.inventory.set(inv);
         this.resetFilterIfNeeded(inv);
         return;
       }
 
-      await this.audit.refreshAudits();
-      const accountId = this.tenant.activeAccountId();
+      await this.audit.refreshAudits({ preferCompleted: true });
       const completed = this.audit
         .audits()
         .find(
           (a) =>
             a.status === 'completed' &&
-            (!accountId || a.accountId === accountId),
+            a.accountId === accountId,
         );
       if (!completed) {
         this.inventory.set(null);
@@ -267,7 +311,7 @@ export class InventoryPageComponent implements OnInit {
       if (!fromAudit) {
         this.inventory.set(null);
         this.error.set(
-          'El audit no tiene inventario persistido. Ejecutá un audit nuevo tras el deploy.',
+          'El audit no tiene inventario persistido. Ejecutá un audit nuevo.',
         );
         return;
       }
@@ -278,6 +322,18 @@ export class InventoryPageComponent implements OnInit {
       this.error.set(err instanceof Error ? err.message : String(err));
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  private async refreshTopology(
+    accountId: string,
+    auditId?: string,
+  ): Promise<void> {
+    try {
+      const snap = await this.scan.getTopologySnapshot({ accountId, auditId });
+      this.topology.set(snap);
+    } catch {
+      this.topology.set(null);
     }
   }
 

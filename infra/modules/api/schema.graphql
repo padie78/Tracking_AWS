@@ -7,6 +7,8 @@ type Query {
   getAuditReport(auditId: ID!): AuditReport @aws_cognito_user_pools
   getAccountInventory(accountId: String!): AccountInventory! @aws_cognito_user_pools
   listAuditInventory(auditId: ID!): AccountInventory @aws_cognito_user_pools
+  getTopologySnapshot(accountId: String!, auditId: ID): TopologySnapshot
+    @aws_cognito_user_pools
   listAlertChannels: [AlertChannel!]! @aws_cognito_user_pools
 }
 
@@ -114,6 +116,51 @@ type AccountInventory @aws_cognito_user_pools {
   auditId: ID
   summary: InventorySummary!
   resources: [InventoryResource!]!
+}
+
+type TopologySummary @aws_cognito_user_pools {
+  nodeCount: Int!
+  edgeCount: Int!
+  serverlessCount: Int!
+  nonServerlessCount: Int!
+  criticalNodeCount: Int!
+}
+
+type TopologyNodeMeta @aws_cognito_user_pools {
+  findingIds: [ID!]
+}
+
+type TopologyNode @aws_cognito_user_pools {
+  id: ID!
+  label: String!
+  resourceType: String!
+  computeClass: String!
+  region: String!
+  state: String!
+  health: String!
+  estimatedMonthlyCostUsd: Float!
+  meta: TopologyNodeMeta
+}
+
+type TopologyEdge @aws_cognito_user_pools {
+  id: ID!
+  source: ID!
+  target: ID!
+  kind: String!
+  label: String
+  bidirectional: Boolean
+}
+
+type TopologySnapshot @aws_cognito_user_pools {
+  tenantId: ID!
+  accountId: String!
+  auditId: ID!
+  asOfIso: AWSDateTime!
+  capturedAtIso: AWSDateTime!
+  source: String!
+  summary: TopologySummary!
+  nodes: [TopologyNode!]!
+  edges: [TopologyEdge!]!
 }
 
 type AuditReport @aws_cognito_user_pools {

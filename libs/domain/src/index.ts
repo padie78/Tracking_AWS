@@ -16,6 +16,7 @@ export * from './lib/entities/subscription';
 export * from './lib/entities/alert-channel';
 export * from './lib/entities/audit-job';
 export * from './lib/entities/audit-finding';
+export * from './lib/entities/topology-snapshot';
 export * from './lib/ports/finding-repository.port';
 export * from './lib/ports/scan-job-repository.port';
 export * from './lib/ports/aws-account-link-repository.port';

@@ -15,8 +15,8 @@ module "database" {
 }
 
 module "storage" {
-  source                       = "./modules/storage"
-  name_prefix                  = local.name_prefix
+  source      = "./modules/storage"
+  name_prefix = local.name_prefix
   # Dev: purge Hive engine Parquet after 7d. Prod: override to 0.
   data_lake_engine_expire_days = var.environment == "prod" ? 0 : 7
 }

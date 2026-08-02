@@ -245,11 +245,13 @@ jobs:
 
           APPSYNC_ENDPOINT=$(jq -r '.appsync_endpoint.value // empty' tf-outputs.json)
           APPSYNC_API_KEY=$(jq -r '.appsync_api_key.value // empty' tf-outputs.json)
+          DATA_LAKE_BUCKET=$(jq -r '.data_lake_bucket.value // empty' tf-outputs.json)
 
           echo "function_name=$FN_NAME" >> "$GITHUB_OUTPUT"
           echo "appsync_endpoint=$APPSYNC_ENDPOINT" >> "$GITHUB_OUTPUT"
           echo "::add-mask::$APPSYNC_API_KEY"
           echo "appsync_api_key=$APPSYNC_API_KEY" >> "$GITHUB_OUTPUT"
+          echo "data_lake_bucket=$DATA_LAKE_BUCKET" >> "$GITHUB_OUTPUT"
 
       - name: Wait until Lambda is fully provisioned
         if: steps.tf.outputs.skip != 'true'
@@ -305,6 +307,41 @@ jobs:
             --arg endpoint "$APPSYNC_ENDPOINT" \
             --arg apiKey "$APPSYNC_API_KEY" \
             '{Variables: (. + {APPSYNC_ENDPOINT: $endpoint, APPSYNC_API_KEY: $apiKey})}' \
+            current-env.json > env-payload.json
+
+          aws lambda update-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --environment "file://env-payload.json" \
+            --no-cli-pager
+
+          aws lambda wait function-updated-v2 \
+            --function-name "$FUNCTION_NAME"
+
+      - name: Patch DATA_LAKE_BUCKET_NAME (historical Parquet)
+        if: >-
+          steps.tf.outputs.skip != 'true' && (
+          matrix.artifact == 'aggregate_audit' ||
+          matrix.artifact == 'cloudquery_inventory'
+          )
+        env:
+          FUNCTION_NAME: ${{ steps.tf.outputs.function_name }}
+          DATA_LAKE_BUCKET: ${{ steps.tf.outputs.data_lake_bucket }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$DATA_LAKE_BUCKET" ]; then
+            echo "::warning::data_lake_bucket ausente en Terraform outputs; se omite patch."
+            exit 0
+          fi
+
+          aws lambda get-function-configuration \
+            --function-name "$FUNCTION_NAME" \
+            --query 'Environment.Variables' \
+            --output json > current-env.json
+
+          jq \
+            --arg bucket "$DATA_LAKE_BUCKET" \
+            '{Variables: (. + {DATA_LAKE_BUCKET_NAME: $bucket})}' \
             current-env.json > env-payload.json
 
           aws lambda update-function-configuration \

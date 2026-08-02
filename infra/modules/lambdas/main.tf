@@ -33,6 +33,7 @@ locals {
     AUDIT_EVENT_BUS_NAME    = var.audit_event_bus_name
     AUDIT_ALERTS_TOPIC_ARN  = var.audit_alerts_topic_arn
     REPORTS_BUCKET_NAME     = var.reports_bucket_name
+    DATA_LAKE_BUCKET_NAME   = var.data_lake_bucket_name
   }
 }
 
@@ -238,7 +239,9 @@ resource "aws_lambda_function" "cloudquery_inventory" {
   }
 
   environment {
-    variables = local.core_env
+    variables = merge(local.core_env, {
+      DATA_LAKE_BUCKET_NAME = var.data_lake_bucket_name
+    })
   }
 }
 

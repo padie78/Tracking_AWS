@@ -15,8 +15,10 @@ module "database" {
 }
 
 module "storage" {
-  source      = "./modules/storage"
-  name_prefix = local.name_prefix
+  source                       = "./modules/storage"
+  name_prefix                  = local.name_prefix
+  # Dev: purge Hive engine Parquet after 7d. Prod: override to 0.
+  data_lake_engine_expire_days = var.environment == "prod" ? 0 : 7
 }
 
 module "analytics" {
@@ -78,6 +80,8 @@ module "lambdas" {
   audit_alerts_topic_arn      = module.alerts.alerts_topic_arn
   reports_bucket_name         = module.storage.reports_bucket_name
   reports_bucket_arn          = module.storage.reports_bucket_arn
+  data_lake_bucket_name       = module.storage.data_lake_bucket_name
+  data_lake_bucket_arn        = module.storage.data_lake_bucket_arn
   prowler_findings_bucket     = module.storage.artifacts_bucket_name
   prowler_findings_bucket_arn = module.storage.artifacts_bucket_arn
 }

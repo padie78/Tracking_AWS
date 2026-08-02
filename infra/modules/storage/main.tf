@@ -77,4 +77,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
       storage_class = "GLACIER_IR"
     }
   }
+
+  # Dev / costo $0: purga Parquet de motores (default 7 días). Prod: expire_days = 0.
+  dynamic "rule" {
+    for_each = var.data_lake_engine_expire_days > 0 ? toset([
+      "cloudquery",
+      "prowler",
+      "trivy",
+      "infracost",
+    ]) : toset([])
+    content {
+      id     = "expire-${rule.key}-parquet"
+      status = "Enabled"
+      filter {
+        prefix = "${rule.key}/"
+      }
+      expiration {
+        days = var.data_lake_engine_expire_days
+      }
+    }
+  }
 }

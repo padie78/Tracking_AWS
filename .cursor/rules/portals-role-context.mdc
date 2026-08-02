@@ -1,57 +1,54 @@
 ---
-description: Matriz de portales Angular por cuenta AWS × rol FinOps y reglas de dossiers IA
+description: Portales Angular por cuenta × rol × vista Simple/Avanzada × asOf; dossiers IA
 alwaysApply: true
 ---
 
-# Portales dinámicos (cuenta × rol)
+# Portales dinámicos (cuenta × rol × vista × tiempo)
 
 Un único dominio: UI, gráficos, sub-dashboards y navegación cambian por:
 
-`[Cuenta AWS activa] × [Rol autenticado: finops_admin | analyst | viewer] × [Vista activa]`
+`[Cuenta AWS activa] × [Rol] × [Vista Simple | Avanzada] × [asOf fecha] × [Vista/módulo activo]`
 
 - Estado reactivo con Signals (`signal` / `computed` / `effect`).
-- No duplicar menús en paralelo; inyectar cuenta AWS en contenedores por rol con `@if` / `@else`.
-- Multi-tenancy: `custom:tenant_id` → partición DynamoDB `TENANT#<id>`.
+- No duplicar menús en paralelo; inyectar cuenta AWS con `@if` / `@else`.
+- Multi-tenancy: `custom:tenant_id` → Dynamo `TENANT#<id>`.
+- Cuando exista Selector de Tiempo Global, **todo módulo de estado** filtra/reconstruye por `asOfIso`.
 
-## Rol: FinOps Admin (Conexión y Gobernanza)
+## RBAC (norte ↔ Cognito hoy)
 
-| Vista | Propósito |
+| Norte | Cognito | Vista por defecto |
+|---|---|---|
+| OWNER | finops_admin | Avanzada (puede Simple) |
+| ADMIN | finops_admin | Avanzada |
+| DEVELOPER | analyst | Avanzada |
+| AUDITOR | viewer | **Simple forzada** (solo lectura) |
+
+Detalle de permisos: `PROYECTO_VISION.md` y `.cursorrules`.
+
+## Módulos (producto)
+
+| Módulo | Propósito |
 |---|---|
-| Inicio / Dashboard | Resumen de ahorro potencial y estado del último scan |
-| EC2 Right-sizing | Instancias sobredimensionadas (CPU/RAM) |
-| Modernización | Migraciones t2→t3 / Graviton |
-| Recursos Huérfanos | EBS no adjuntos y Elastic IPs inactivas |
-| Dossier de Ahorro | Guía IA de remediación paso a paso |
-| Settings | Vínculo MCP / cuentas AWS del tenant |
+| Dashboard | Score, KPIs, tendencia, resumen IA as-of |
+| SecOps | Findings Prowler (+ Trivy roadmap); remediated vs open |
+| Compliance | ISO/SOC2/PCI; evidencias |
+| FinOps | Costos/anomalías/ahorro playbooks |
+| Inventario / Topología | Tabla multi-servicio + ngx-graph rebobinable + drift |
+| Playbooks | 1-clic / scheduling / ROI (según rol) |
+| Settings | Cuentas, integraciones, alertas, RBAC |
 
-Tono producto/IA: corporativo, técnico, accionable (gobernanza FinOps).
+Compat rutas actuales FinOps tabs (rightsizing / modernization / orphaned) → viven bajo FinOps.
 
-## Rol: Analyst (Análisis y Remediación)
+## Tono producto / IA por rol
 
-| Vista | Propósito |
-|---|---|
-| Inicio / Dashboard | Ahorro potencial y findings abiertos |
-| EC2 Right-sizing | Priorización de instancias sobredimensionadas |
-| Modernización | Recomendaciones de familia/arquitectura |
-| Recursos Huérfanos | Inventario de waste operativo |
-| Dossier de Ahorro | Consolidación y guía de remediación |
+- **OWNER/ADMIN:** corporativo, gobernanza, accionable.
+- **DEVELOPER/analyst:** frío, cuantitativo, priorización.
+- **AUDITOR/viewer:** ejecutivo, conciso, sin jerga operativa.
 
-Tono producto/IA: frío, cuantitativo, predictivo (priorización de ahorro).
+## Dossiers / insights IA en la SPA
 
-## Rol: Viewer (Solo Lectura)
-
-| Vista | Propósito |
-|---|---|
-| Inicio / Dashboard | Resumen ejecutivo de ahorro |
-| Dossier de Ahorro | Lectura del último dossier generado |
-
-Tono producto/IA: ejecutivo, conciso, sin jerga operativa innecesaria.
-
-## Dossiers IA en el contenedor SPA
-
-Cuando el output es un análisis/dossier para renderizar en la SPA:
-
-1. Fidelidad a la vista activa (finding puntual vs dossier consolidado).
-2. Tono según rol (admin / analyst / viewer).
-3. Glosario nativo AWS (EC2, EBS, EIP, instance families, CloudWatch); no inventar servicios/regiones/tipos.
-4. Solo Markdown limpio; sin saludos ni cierres. Empezar en el primer encabezado.
+1. Fidelidad a la vista activa y a `asOfIso`.
+2. Comparar vs snapshot anterior cuando haya datos.
+3. Impacto de negocio + acción prescriptiva (o link a playbook).
+4. Glosario AWS fiel; no inventar recursos/regiones/tipos.
+5. Markdown limpio; sin saludos ni cierres. Empezar en el primer encabezado.

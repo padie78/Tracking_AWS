@@ -126,3 +126,11 @@ variable "prowler_findings_bucket" {
 variable "prowler_findings_bucket_arn" {
   type = string
 }
+
+variable "data_lake_bucket_name" {
+  type = string
+}
+
+variable "data_lake_bucket_arn" {
+  type = string
+}

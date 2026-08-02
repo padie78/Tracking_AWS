@@ -1,18 +1,20 @@
-# Cursor Rules — Autonomous Cloud Audit SaaS (Track_AWS)
+# Cursor Rules — Track_AWS (Enterprise Time-Travel SaaS)
 
-You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecOps, Well-Architected, and Angular. Production-ready, type-safe, least-privilege code only.
+You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecOps, Well-Architected, event-driven multi-tenant SaaS, and Angular. Production-ready, type-safe, least-privilege code only.
+
+**North star:** ver `PROYECTO_VISION.md` (Time-Travel Diagnostics, módulos 1–9, grafo semántico, RBAC OWNER/ADMIN/DEVELOPER/AUDITOR). Implementar por capas; no reescribir el monorepo de golpe.
 
 ---
 
 ## MANDATORY CORE RULES
 
-1. **Stack:** Angular 17+ (Standalone only, NO `NgModule`) + Ionic (`@ionic/angular/standalone`) + TypeScript Signals.
-2. **Infra:** Terraform modular. Compute = Lambda + **ECS Fargate (Prowler)**. Orchestration = Step Functions `Parallel`. API = AppSync. Auth = Cognito. DB = DynamoDB single-table.
-3. **Pattern:** Event-driven + hexagonal (Nx: `domain` / `application` / `infrastructure` / `common`).
-4. **Types:** Strict TypeScript — **NO `any`**. Interfaces for `Tenant`, `AuditPayload`, `ProwlerFinding`, `FinOpsFinding`.
+1. **Stack (hoy):** Angular 17+ (Standalone only, NO `NgModule`) + Ionic (`@ionic/angular/standalone`) + TypeScript Signals.
+2. **Infra:** Terraform modular. Compute = Lambda **TypeScript** (Nx hexagonal) + **ECS Fargate (Prowler)**. Orquestación = Step Functions (`Parallel`; Distributed Map cuando escale). API = AppSync. Auth = Cognito. DB = DynamoDB single-table (+ cachés/time-travel keys).
+3. **Pattern:** Event-driven + hexagonal (`domain` / `application` / `infrastructure` / `common`).
+4. **Types:** Strict TypeScript — **NO `any`**. Interfaces de dominio (`Tenant`, `AuditPayload`, `ProwlerFinding`, `FinOpsFinding`, `TopologySnapshot`, …).
 5. **IaC vs code:** Terraform modules ≠ Lambda business logic.
-6. **Realtime:** AppSync GraphQL Mutations/Subscriptions.
-7. **Privacy:** Inventario/credenciales efímeros (AssumeRole STS en memoria). Persistir solo findings agregados, scores, reportes metadata — nunca dumps crudos ni access keys.
+6. **Realtime:** AppSync GraphQL Mutations/Subscriptions; EventBridge para proactividad.
+7. **Privacy:** Inventario/credenciales efímeros (AssumeRole STS en memoria). Persistir findings agregados, scores, snapshots cocinados, metadata de reportes — nunca dumps crudos ni access keys. Secrets IA/tool → SSM `SecureString`.
 
 ---
 
@@ -20,7 +22,20 @@ You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecO
 
 - Extraer `tenant_id` **solo** del JWT Cognito: `custom:tenant_id` / `$ctx.identity.claims`.
 - **Prohibido** aceptar `tenantId` mutable del cliente en GraphQL args o body HTTP de usuario.
-- Particionar DynamoDB: `PK = TENANT#<tenant_id>`.
+- Particionar DynamoDB: `PK = TENANT#<tenant_id>` (account AWS como dimensión en SK / GSI cuando aplique).
+- Onboarding: `sts:GetCallerIdentity` + ExternalId anti confused-deputy.
+
+---
+
+## TIME-TRAVEL & DATOS
+
+- Cold path Parquet append-only en data-lake (sin análisis Athena aún):
+  `{engine}/tenant_id={12}/anio={YYYY}/mes={MM}/{engine}_{12}_{YYYYMMDD-HHMM}.parquet`
+  engines: `cloudquery` | `prowler` | `trivy` | `infracost`.
+  En la key, `tenant_id` = AWS Account ID (12). Cognito SaaS → columna `org_tenant_id`.
+- **Prohibido sobrescribir** histórico. Dev: lifecycle 7d en esos prefijos.
+- Consultas point-in-time / Dashboard-Cache / selector `asOf` = etapa posterior.
+- Topología: contrato `TopologySnapshot` / `DriftReport` en `PROYECTO_VISION.md` §E.
 
 ---
 
@@ -28,21 +43,36 @@ You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecO
 
 | Componente | Servicio | Notas |
 |---|---|---|
-| Auth | Cognito (+ API GW solo ingestion M2M) | Claims `tenant_id`, `user_role` |
-| Dashboard API | AppSync | Queries + subscriptions |
+| Auth | Cognito | Claims `tenant_id`, `user_role` (mapa a RBAC norte) |
+| Dashboard API | AppSync | Queries + subscriptions + `asOf` |
 | Orquestador | Step Functions | AssumeRole → Parallel CloudQuery∥Prowler → aggregate |
-| Inventario / FinOps | CloudQuery-style engine en **Lambda** | Relacional/efímero → FinOps findings |
-| Seguridad | **Prowler en ECS Fargate** | CIS/WAF → S3 → load_prowler_results |
-| Persistencia | DynamoDB STD | `AUDIT#` / `FINDING#` / `ALERT#` |
-| Alertas cliente | EventBridge + SNS + webhooks | Seguridad, tips de ahorro, inconsistencias |
-| Reportes | Lambda + S3 | PDF / executive summary por tenant |
-| Frontend | Angular + S3/CloudFront | |
+| Inventario / FinOps | CloudQuery-style **Lambda** | Catálogo multi-servicio + findings FinOps |
+| Seguridad | **Prowler ECS Fargate** | CIS/compliance → S3 → load |
+| AppSec / costos futuros | Trivy / Infracost | Roadmap |
+| Histórico frío | S3 Parquet + Glue + Athena | Time-travel |
+| Caché caliente | DynamoDB | Audits/findings + Dashboard-Cache |
+| Alertas | EventBridge + SNS + webhooks | Seguridad, ahorro, drift, anomalías |
+| Reportes / ROI | Lambda + S3 | PDF / executive; Object Lock en compliance |
+| Frontend | Angular + S3/CloudFront | Simple/Avanzada + time selector |
+
+---
+
+## RBAC (NORTE ↔ HOY)
+
+| Norte | Cognito (compat) | Notas |
+|---|---|---|
+| OWNER | finops_admin | Control total + billing SaaS (futuro) |
+| ADMIN | finops_admin | Integraciones/scans; sin billing ni borrar root accounts |
+| DEVELOPER | analyst | Avanzada; playbooks pre-aprobados; `cuentas_asignadas` opcional |
+| AUDITOR | viewer | Solo lectura; vista simple forzada |
+
+Validar permisos en resolvers/use cases; no confiar en ocultar botones en UI.
 
 ---
 
 ## STEP FUNCTIONS
 
-- Estado `Parallel` con **Retry** + **Catch por rama** (fallback findings vacíos).
+- `Parallel` con **Retry** + **Catch por rama** (fallback findings vacíos).
 - CloudQuery Lambda: timeout **900s**, memoria **≥2048MB**.
 - Prowler: `ecs:runTask.sync` Fargate (timeout 900s).
 
@@ -50,25 +80,19 @@ You are a Senior Software Architect specializing in AWS Serverless, FinOps, SecO
 
 ## PORTALES ANGULAR
 
-`[Cuenta AWS] × [Rol: finops_admin | analyst | viewer] × [Vista]`
+`[Cuenta AWS] × [Rol] × [Vista Simple|Avanzada] × [asOf fecha]`
 
-| Vista admin/analyst | Propósito |
-|---|---|
-| Dashboard | Score WAF + ahorro USD + último audit |
-| FinOps | Rightsizing / modernización / huérfanos |
-| SecOps | Findings Prowler (CIS/compliance) |
-| Arquitectura | Pilares Well-Architected |
-| Reportes | PDF / executive summaries |
-| Settings | Conectar cuenta + canales de alerta |
+Módulos: Dashboard · SecOps · Compliance · FinOps · Inventario/Topología · (Twin) · Copilot · Playbooks · Settings.
 
-Tono: admin gobernanza; analyst cuantitativo; viewer ejecutivo.
+Tono: Simple = ejecutivo; Avanzada = técnico/accionable. Insights IA: impacto de negocio + acción prescriptiva (comparar vs snapshot anterior).
 
 ---
 
 ## GUARDRAILS
 
-- Step Functions + Lambda: errores → retries/Catch parcial; SQS con `ReportBatchItemFailures` donde aplique.
-- Cold path CUR → S3 Parquet → Glue/Athena.
+- Errores parciales → retries/Catch; SQS `ReportBatchItemFailures` donde aplique.
+- Cold path CUR / histórico → S3 Parquet → Glue/Athena.
 - DI: `composition-root.ts` por Lambda.
 - Zod en frontera de use cases.
 - Reportes SPA: Markdown limpio, sin saludos; glosario AWS fiel a datos.
+- No inventar recursos/regiones/tipos AWS no presentes en el snapshot.

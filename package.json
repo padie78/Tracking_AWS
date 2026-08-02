@@ -48,6 +48,7 @@
     "@ionic/angular": "^8.4.0",
     "aws-amplify": "^6.4.0",
     "echarts": "^6.1.0",
+    "hyparquet-writer": "^0.16.4",
     "ionicons": "^7.4.0",
     "ngx-echarts": "^17.2.0",
     "rxjs": "~7.8.0",

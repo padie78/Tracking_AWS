@@ -1,5 +1,5 @@
 ---
-description: Multitenant — tenant_id solo desde JWT Cognito
+description: Multitenant — tenant_id solo desde JWT Cognito + time-travel keys
 globs: lambda_code/api/**/*.ts,apps/track-aws-web/**/*.ts,infra/modules/api/schema.graphql
 alwaysApply: true
 ---
@@ -9,5 +9,7 @@ alwaysApply: true
 - Extraer `tenant_id` **únicamente** de `custom:tenant_id` en el JWT Cognito.
 - **Prohibido** aceptar `tenantId` en GraphQL args / body de usuario.
 - Particionar DynamoDB con `PK = TENANT#<tenant_id>`.
-- Compute: Lambdas + **Prowler en ECS Fargate**. Orquestación: Step Functions Parallel.
+- Account AWS (12 dígitos) es dimensión de negocio (SK/GSI/args), no el tenant de autenticación.
+- Compute: Lambdas TS + **Prowler en ECS Fargate**. Orquestación: Step Functions Parallel.
 - Alertas cliente: EventBridge digest (seguridad / ahorro / inconsistencias) → SNS + webhooks.
+- Histórico time-travel: S3 append-only + Dashboard-Cache; Athena en miss de caché.

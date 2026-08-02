@@ -1,0 +1,22 @@
+---
+description: North-star Time-Travel, módulos 1–9, grafo semántico y datos inmutables
+alwaysApply: true
+---
+
+# Enterprise Time-Travel & módulos
+
+Fuente detallada: `PROYECTO_VISION.md`.
+
+## Obligatorio al diseñar/implementar features
+
+1. **Time-travel:** si la feature muestra estado de cuenta, aceptar (o planear) `asOfIso`. No sobrescribir artefactos históricos en S3.
+2. **Cache-first:** Dashboard-Cache Dynamo (SK fecha) antes que Athena.
+3. **Tenant:** solo JWT `custom:tenant_id`. Nunca `tenantId` del cliente.
+4. **Topología:** payloads alineados a `TopologySnapshot` / `DriftReport` (§E visión). Serverless vs non_serverless vía `computeClass`.
+5. **IA:** comparar vs snapshot anterior; impacto de negocio + acción / playbook.
+6. **RBAC norte:** OWNER / ADMIN / DEVELOPER / AUDITOR (compat Cognito finops_admin / analyst / viewer).
+7. **Stack de código:** TypeScript hexagonal + Terraform; no introducir Python/boto3 salvo decisión explícita de migración de un worker.
+
+## Módulos (recordatorio)
+
+Dashboard · SecOps(+AppSec) · Compliance · FinOps · Inventario/Topología · Cyber Twin · Copilot · Playbooks · Settings — todos reaccionan al selector de tiempo cuando exista.

@@ -12,7 +12,11 @@ import {
   DynamoDbAuditFindingRepository,
   DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
+  HistoricalParquetWriter,
+  INFRACOST_PARQUET_SCHEMA,
+  PROWLER_PARQUET_SCHEMA,
   ProwlerSecurityEngine,
+  TRIVY_PARQUET_SCHEMA,
   type InventorySummaryView,
 } from '@track-aws/infrastructure';
 import type { InventoryResourceView } from '@track-aws/application';
@@ -319,6 +323,14 @@ export const handler: Handler<Input> = async (event) => {
     });
   }
 
+  const historicalUris = await writeHistoricalParquetArtifacts({
+    tenantId: event.tenantId,
+    accountId: event.accountId,
+    auditId: event.auditId,
+    correlationId: event.correlationId,
+    secopsFindings,
+  });
+
   return {
     auditId: completed.auditId,
     status: completed.status,
@@ -332,5 +344,98 @@ export const handler: Handler<Input> = async (event) => {
     aiGenerated,
     inventorySummary: reportInventory,
     secopsFindingCount: secopsFindings.length,
+    historicalParquet: historicalUris,
   };
 };
+
+async function writeHistoricalParquetArtifacts(input: {
+  tenantId: string;
+  accountId: string;
+  auditId: string;
+  correlationId: string;
+  secopsFindings: SerializedFinding[];
+}): Promise<{
+  prowler: string | null;
+  trivy: string | null;
+  infracost: string | null;
+}> {
+  const out = {
+    prowler: null as string | null,
+    trivy: null as string | null,
+    infracost: null as string | null,
+  };
+
+  if (!process.env['DATA_LAKE_BUCKET_NAME']) {
+    console.warn('DATA_LAKE_BUCKET_NAME ausente; se omite cold path Parquet');
+    return out;
+  }
+
+  const writer = new HistoricalParquetWriter();
+  const capturedAt = new Date();
+  const base = {
+    awsAccountId: input.accountId,
+    orgTenantId: input.tenantId,
+    auditId: input.auditId,
+    correlationId: input.correlationId,
+    capturedAt,
+  };
+
+  try {
+    const prowler = await writer.write({
+      ...base,
+      engine: 'prowler',
+      schema: PROWLER_PARQUET_SCHEMA,
+      rows: input.secopsFindings.map((f) => ({
+        finding_id: f.findingId,
+        domain: f.domain,
+        category: f.category,
+        severity: f.severity,
+        resource_arn: f.resourceArn,
+        resource_id: f.resourceId,
+        region: f.region,
+        title: f.title,
+        rationale: f.rationale,
+        recommended_action: f.recommendedAction,
+        estimated_monthly_savings_usd: f.estimatedMonthlySavingsUsd,
+        check_id: f.checkId,
+      })),
+    });
+    out.prowler = prowler.s3Uri;
+  } catch (err) {
+    console.error('prowler parquet write failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Motores aún no cableados: stubs append-only con schema fijo (Athena/análisis = etapa 2).
+  try {
+    const trivy = await writer.write({
+      ...base,
+      engine: 'trivy',
+      schema: TRIVY_PARQUET_SCHEMA,
+      rows: [],
+    });
+    out.trivy = trivy.s3Uri;
+  } catch (err) {
+    console.error('trivy parquet stub write failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const infracost = await writer.write({
+      ...base,
+      engine: 'infracost',
+      schema: INFRACOST_PARQUET_SCHEMA,
+      rows: [],
+    });
+    out.infracost = infracost.s3Uri;
+  } catch (err) {
+    console.error('infracost parquet stub write failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  console.info('historical parquet artifacts', out);
+  return out;
+}

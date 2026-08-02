@@ -121,6 +121,21 @@ data "aws_iam_policy_document" "lambda_inline" {
   }
 
   statement {
+    sid    = "WriteHistoricalDataLakeParquet"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:AbortMultipartUpload",
+    ]
+    resources = [
+      "${var.data_lake_bucket_arn}/cloudquery/*",
+      "${var.data_lake_bucket_arn}/prowler/*",
+      "${var.data_lake_bucket_arn}/trivy/*",
+      "${var.data_lake_bucket_arn}/infracost/*",
+    ]
+  }
+
+  statement {
     sid    = "ProwlerFindingsArtifacts"
     effect = "Allow"
     actions = [

@@ -56,7 +56,7 @@ set -e
 echo "[trivy-fargate] Listing ECR repositories"
 python3 "${AWS_OPS}" list-repos --out "${WORK_DIR}/repos.json"
 
-python3 <<'PY' "${WORK_DIR}" "${MAX_IMAGES}" "${AWS_REGION}" "${ACCOUNT_ID}" "${AWS_OPS}"
+python3 - "${WORK_DIR}" "${MAX_IMAGES}" "${AWS_REGION}" "${ACCOUNT_ID}" "${AWS_OPS}" <<'PY'
 import json, subprocess, sys
 from pathlib import Path
 work = Path(sys.argv[1])

@@ -14,6 +14,10 @@ variable "load_prowler_results_arn" {
   type = string
 }
 
+variable "load_trivy_results_arn" {
+  type = string
+}
+
 variable "aggregate_audit_arn" {
   type = string
 }
@@ -30,9 +34,18 @@ variable "prowler_task_definition_arn" {
   type = string
 }
 
+variable "trivy_task_definition_arn" {
+  type = string
+}
+
 variable "prowler_container_name" {
   type    = string
   default = "prowler"
+}
+
+variable "trivy_container_name" {
+  type    = string
+  default = "trivy"
 }
 
 variable "prowler_subnet_ids" {

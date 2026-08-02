@@ -25,7 +25,7 @@ export interface WriteHistoricalParquetInput {
   auditId?: string;
   correlationId?: string;
   rows: ParquetRow[];
-  /** Schema obligatorio si rows está vacío (stubs Trivy/Infracost). */
+  /** Schema obligatorio si rows está vacío (p. ej. sin imágenes ECR / sin costos). */
   schema: ParquetColumnSchema[];
   capturedAt?: Date;
   bucketName?: string;
@@ -182,7 +182,7 @@ export const PROWLER_PARQUET_SCHEMA: ParquetColumnSchema[] = [
   { name: 'check_id', type: 'STRING' },
 ];
 
-/** Stub schema — motor Trivy aún no cableado; archivo vacío válido para Hive. */
+/** Schema Trivy AppSec (Fargate → load_trivy_results → aggregate). */
 export const TRIVY_PARQUET_SCHEMA: ParquetColumnSchema[] = [
   { name: 'finding_id', type: 'STRING' },
   { name: 'target', type: 'STRING' },
@@ -194,7 +194,7 @@ export const TRIVY_PARQUET_SCHEMA: ParquetColumnSchema[] = [
   { name: 'title', type: 'STRING' },
 ];
 
-/** Stub schema — motor Infracost aún no cableado. */
+/** Schema Infracost (estimación desde inventario CloudQuery; CLI TF plan = etapa posterior). */
 export const INFRACOST_PARQUET_SCHEMA: ParquetColumnSchema[] = [
   { name: 'project_name', type: 'STRING' },
   { name: 'resource_name', type: 'STRING' },

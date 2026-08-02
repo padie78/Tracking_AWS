@@ -1,0 +1,104 @@
+name: Deploy Scanner Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "integrations/prowler-fargate/**"
+      - "integrations/trivy-fargate/**"
+      - ".github/workflows/deploy-prowler-image.yml"
+      - ".github/workflows/deploy-scanner-images.yml"
+  workflow_run:
+    workflows: ["Deploy Infrastructure"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: scanner-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET || '' }}
+  TF_STATE_LOCKS_TABLE: ${{ vars.TF_STATE_LOCKS_TABLE || 'track-aws-tf-locks' }}
+  TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'dev/terraform.tfstate' }}
+
+jobs:
+  push:
+    name: Build & push Prowler + Trivy images
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve Terraform state bucket
+        id: backend
+        run: |
+          BUCKET="${TF_STATE_BUCKET}"
+          if [ -z "$BUCKET" ]; then
+            ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+            BUCKET="track-aws-tfstate-${ACCOUNT_ID}"
+            echo "::warning::TF_STATE_BUCKET no configurada; usando default del bootstrap: ${BUCKET}"
+          fi
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "::error::No existe el bucket '${BUCKET}'."
+            exit 1
+          fi
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.2
+          terraform_wrapper: false
+
+      - name: Read ECR URLs from Terraform state
+        id: tf
+        working-directory: infra
+        run: |
+          set -euo pipefail
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_STATE_LOCKS_TABLE}" \
+            -backend-config="encrypt=true"
+          PROWLER_ECR="$(terraform output -raw prowler_ecr_repository_url)"
+          TRIVY_ECR="$(terraform output -raw trivy_ecr_repository_url)"
+          if [ -z "$PROWLER_ECR" ] || [ -z "$TRIVY_ECR" ]; then
+            echo "::error::Outputs ECR vacíos. Ejecutá Deploy Infrastructure primero."
+            exit 1
+          fi
+          echo "prowler_ecr=${PROWLER_ECR}" >> "$GITHUB_OUTPUT"
+          echo "trivy_ecr=${TRIVY_ECR}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Prowler
+        env:
+          ECR_URL: ${{ steps.tf.outputs.prowler_ecr }}
+        run: |
+          docker build -t "${ECR_URL}:latest" integrations/prowler-fargate
+          docker push "${ECR_URL}:latest"
+          echo "Pushed ${ECR_URL}:latest"
+
+      - name: Build and push Trivy
+        env:
+          ECR_URL: ${{ steps.tf.outputs.trivy_ecr }}
+        run: |
+          docker build -t "${ECR_URL}:latest" integrations/trivy-fargate
+          docker push "${ECR_URL}:latest"
+          echo "Pushed ${ECR_URL}:latest"

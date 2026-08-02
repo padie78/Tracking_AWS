@@ -187,6 +187,14 @@ output "prowler_ecr_repository_url" {
   value = module.prowler_fargate.ecr_repository_url
 }
 
+output "trivy_ecr_repository_url" {
+  value = module.prowler_fargate.trivy_ecr_repository_url
+}
+
+output "load_trivy_results_name" {
+  value = module.lambdas.load_trivy_results_name
+}
+
 output "prowler_cluster_name" {
   value = module.prowler_fargate.cluster_name
 }

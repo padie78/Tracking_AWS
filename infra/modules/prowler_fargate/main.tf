@@ -146,6 +146,7 @@ data "aws_iam_policy_document" "task" {
     actions = ["s3:PutObject", "s3:AbortMultipartUpload"]
     resources = [
       "${var.artifacts_bucket_arn}/tenants/*/audits/*/prowler/*",
+      "${var.artifacts_bucket_arn}/tenants/*/audits/*/trivy/*",
     ]
   }
 }
@@ -202,6 +203,73 @@ resource "aws_ecs_task_definition" "prowler" {
           "awslogs-group"         = aws_cloudwatch_log_group.prowler.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "prowler"
+        }
+      }
+    }
+  ])
+}
+
+# ─────────── Trivy (mismo cluster / VPC / roles) ───────────
+
+resource "aws_ecr_repository" "trivy" {
+  name                 = "${var.name_prefix}-trivy"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = var.tags
+}
+
+resource "aws_ecr_lifecycle_policy" "trivy" {
+  repository = aws_ecr_repository.trivy.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 10 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "trivy" {
+  name              = "/ecs/${var.name_prefix}-trivy"
+  retention_in_days = 30
+  tags              = var.tags
+}
+
+resource "aws_ecs_task_definition" "trivy" {
+  family                   = "${var.name_prefix}-trivy"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+  tags                     = var.tags
+
+  container_definitions = jsonencode([
+    {
+      name      = "trivy"
+      image     = "${aws_ecr_repository.trivy.repository_url}:${var.prowler_image_tag}"
+      essential = true
+      environment = [
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "OUTPUT_BUCKET", value = var.artifacts_bucket_name },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.trivy.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "trivy"
         }
       }
     }

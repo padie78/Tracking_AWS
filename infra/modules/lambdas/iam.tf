@@ -143,7 +143,10 @@ data "aws_iam_policy_document" "lambda_inline" {
       "s3:PutObject",
       "s3:AbortMultipartUpload",
     ]
-    resources = ["${var.prowler_findings_bucket_arn}/tenants/*/audits/*/prowler/*"]
+    resources = [
+      "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/prowler/*",
+      "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/trivy/*",
+    ]
   }
 }
 

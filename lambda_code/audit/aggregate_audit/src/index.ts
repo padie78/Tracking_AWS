@@ -12,11 +12,13 @@ import {
   DynamoDbAuditFindingRepository,
   DynamoDbAuditInventoryRepository,
   DynamoDbAuditJobRepository,
+  estimateInfracostFromInventory,
   HistoricalParquetWriter,
   INFRACOST_PARQUET_SCHEMA,
   PROWLER_PARQUET_SCHEMA,
   ProwlerSecurityEngine,
   TRIVY_PARQUET_SCHEMA,
+  type InfracostLineItem,
   type InventorySummaryView,
 } from '@track-aws/infrastructure';
 import type { InventoryResourceView } from '@track-aws/application';
@@ -36,6 +38,11 @@ type SerializedFinding = {
   estimatedMonthlySavingsUsd: number;
   checkId: string | null;
   createdAtIso: string;
+  target?: string;
+  vulnerabilityId?: string;
+  pkgName?: string;
+  installedVersion?: string;
+  fixedVersion?: string;
 };
 
 type Input = {
@@ -50,8 +57,10 @@ type Input = {
     findings: SerializedFinding[];
     inventorySummary?: InventorySummaryView | null;
     resources?: InventoryResourceView[];
+    infracostLines?: InfracostLineItem[];
   };
   secops: { findings: SerializedFinding[]; warning?: string; engine?: string };
+  appsec?: { findings: SerializedFinding[]; warning?: string; engine?: string };
 };
 
 function scoreFromFindings(
@@ -210,8 +219,12 @@ export const handler: Handler<Input> = async (event) => {
   }
 
   const secopsFindings = await resolveSecopsFindings(event);
+  const appsecFindings = event.appsec?.findings ?? [];
 
-  const securityScore = scoreFromFindings(secopsFindings, 'secops');
+  const securityScore = scoreFromFindings(
+    [...secopsFindings, ...appsecFindings],
+    'secops',
+  );
   const costScore = scoreFromFindings(event.finops?.findings ?? [], 'finops');
   const pillarScores: WafPillarScores = {
     operationalExcellence: Math.round((securityScore + costScore) / 2),
@@ -231,6 +244,7 @@ export const handler: Handler<Input> = async (event) => {
   const allSerialized = [
     ...(event.finops?.findings ?? []),
     ...secopsFindings,
+    ...appsecFindings,
     ...archSerialized,
   ];
 
@@ -323,12 +337,22 @@ export const handler: Handler<Input> = async (event) => {
     });
   }
 
+  const infracostLines =
+    event.finops?.infracostLines ??
+    estimateInfracostFromInventory({
+      accountId: event.accountId,
+      auditId: event.auditId,
+      resources: inventoryResources,
+    });
+
   const historicalUris = await writeHistoricalParquetArtifacts({
     tenantId: event.tenantId,
     accountId: event.accountId,
     auditId: event.auditId,
     correlationId: event.correlationId,
     secopsFindings,
+    appsecFindings,
+    infracostLines,
   });
 
   return {
@@ -344,6 +368,8 @@ export const handler: Handler<Input> = async (event) => {
     aiGenerated,
     inventorySummary: reportInventory,
     secopsFindingCount: secopsFindings.length,
+    appsecFindingCount: appsecFindings.length,
+    infracostLineCount: infracostLines.length,
     historicalParquet: historicalUris,
   };
 };
@@ -354,6 +380,8 @@ async function writeHistoricalParquetArtifacts(input: {
   auditId: string;
   correlationId: string;
   secopsFindings: SerializedFinding[];
+  appsecFindings: SerializedFinding[];
+  infracostLines: InfracostLineItem[];
 }): Promise<{
   prowler: string | null;
   trivy: string | null;
@@ -407,17 +435,25 @@ async function writeHistoricalParquetArtifacts(input: {
     });
   }
 
-  // Motores aún no cableados: stubs append-only con schema fijo (Athena/análisis = etapa 2).
   try {
     const trivy = await writer.write({
       ...base,
       engine: 'trivy',
       schema: TRIVY_PARQUET_SCHEMA,
-      rows: [],
+      rows: input.appsecFindings.map((f) => ({
+        finding_id: f.findingId,
+        target: f.target ?? f.resourceArn,
+        vulnerability_id: f.vulnerabilityId ?? f.checkId ?? '',
+        severity: f.severity,
+        pkg_name: f.pkgName ?? f.resourceId,
+        installed_version: f.installedVersion ?? '',
+        fixed_version: f.fixedVersion ?? '',
+        title: f.title,
+      })),
     });
     out.trivy = trivy.s3Uri;
   } catch (err) {
-    console.error('trivy parquet stub write failed', {
+    console.error('trivy parquet write failed', {
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -427,11 +463,11 @@ async function writeHistoricalParquetArtifacts(input: {
       ...base,
       engine: 'infracost',
       schema: INFRACOST_PARQUET_SCHEMA,
-      rows: [],
+      rows: input.infracostLines,
     });
     out.infracost = infracost.s3Uri;
   } catch (err) {
-    console.error('infracost parquet stub write failed', {
+    console.error('infracost parquet write failed', {
       message: err instanceof Error ? err.message : String(err),
     });
   }

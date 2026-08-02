@@ -38,6 +38,18 @@ output "container_name" {
   value = "prowler"
 }
 
+output "trivy_task_definition_arn" {
+  value = aws_ecs_task_definition.trivy.arn
+}
+
+output "trivy_container_name" {
+  value = "trivy"
+}
+
+output "trivy_ecr_repository_url" {
+  value = aws_ecr_repository.trivy.repository_url
+}
+
 output "findings_key_prefix" {
   value = "tenants"
 }

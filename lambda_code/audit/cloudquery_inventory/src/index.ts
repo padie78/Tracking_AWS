@@ -4,7 +4,9 @@ import {
   AssumeRoleAwsInventoryAdapter,
   CloudQueryInventoryEngine,
   CLOUDQUERY_PARQUET_SCHEMA,
+  estimateInfracostFromInventory,
   HistoricalParquetWriter,
+  INFRACOST_PARQUET_SCHEMA,
 } from '@track-aws/infrastructure';
 
 export const handler: Handler<AuditPayload> = async (event) => {
@@ -27,7 +29,14 @@ export const handler: Handler<AuditPayload> = async (event) => {
     createdAtIso: f.createdAtIso,
   }));
 
+  const infracostLines = estimateInfracostFromInventory({
+    accountId: event.accountId,
+    auditId: event.auditId,
+    resources: result.resources,
+  });
+
   let parquetUri: string | null = null;
+  let infracostParquetUri: string | null = null;
   try {
     const writer = new HistoricalParquetWriter();
     const rows = [
@@ -85,9 +94,24 @@ export const handler: Handler<AuditPayload> = async (event) => {
       s3Uri: written.s3Uri,
       rowCount: written.rowCount,
     });
+
+    const infracostWritten = await writer.write({
+      engine: 'infracost',
+      awsAccountId: event.accountId,
+      orgTenantId: event.tenantId,
+      auditId: event.auditId,
+      correlationId: event.correlationId,
+      schema: INFRACOST_PARQUET_SCHEMA,
+      rows: infracostLines,
+    });
+    infracostParquetUri = infracostWritten.s3Uri;
+    console.info('infracost parquet written', {
+      s3Uri: infracostWritten.s3Uri,
+      rowCount: infracostWritten.rowCount,
+    });
   } catch (err) {
     // No abortar el audit: el cold path es best-effort en esta etapa.
-    console.error('cloudquery parquet write failed', {
+    console.error('cloudquery/infracost parquet write failed', {
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -96,6 +120,8 @@ export const handler: Handler<AuditPayload> = async (event) => {
     inventorySummary: result.inventorySummary,
     resources: result.resources,
     findings: findingRows,
+    infracostLines,
     parquetUri,
+    infracostParquetUri,
   };
 };

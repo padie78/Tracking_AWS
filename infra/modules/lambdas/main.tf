@@ -263,6 +263,24 @@ resource "aws_lambda_function" "load_prowler_results" {
   }
 }
 
+resource "aws_lambda_function" "load_trivy_results" {
+  function_name    = "${var.name_prefix}-load-trivy-results"
+  role             = aws_iam_role.lambda_exec.arn
+  runtime          = "nodejs20.x"
+  handler          = "index.handler"
+  filename         = data.archive_file.bootstrap.output_path
+  source_code_hash = data.archive_file.bootstrap.output_base64sha256
+  timeout          = 30
+  memory_size      = 256
+  architectures    = ["arm64"]
+
+  environment {
+    variables = merge(local.core_env, {
+      PROWLER_FINDINGS_BUCKET = var.prowler_findings_bucket
+    })
+  }
+}
+
 resource "aws_lambda_function" "aggregate_audit" {
   function_name    = "${var.name_prefix}-aggregate-audit"
   role             = aws_iam_role.lambda_exec.arn

@@ -62,6 +62,14 @@ output "load_prowler_results_name" {
   value = aws_lambda_function.load_prowler_results.function_name
 }
 
+output "load_trivy_results_arn" {
+  value = aws_lambda_function.load_trivy_results.arn
+}
+
+output "load_trivy_results_name" {
+  value = aws_lambda_function.load_trivy_results.function_name
+}
+
 output "aggregate_audit_arn" {
   value = aws_lambda_function.aggregate_audit.arn
 }

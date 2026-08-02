@@ -4,7 +4,8 @@
 |----------|---------|----------|
 | `deploy-infra.yml` | push en `infra/**` o manual | Terraform apply |
 | `deploy-lambdas.yml` | push en `lambda_code/**` / `libs/**`, tras infra OK, o manual | esbuild + `update-function-code` |
-| `deploy-prowler-image.yml` | push en `integrations/prowler-fargate/**`, tras infra, o manual | Docker build/push ECR (Fargate) |
+| `deploy-scanner-images.yml` | push en `integrations/{prowler,trivy}-fargate/**`, tras infra, o manual | Docker build/push ECR Prowler+Trivy |
+| `deploy-prowler-image.yml` | legacy (Prowler only); prefer `deploy-scanner-images.yml` | Docker build/push Prowler ECR |
 | `deploy-frontend.yml` | push en `apps/track-aws-web/**` o manual | build Angular + S3 + CloudFront |
 
 ## Secrets y variables

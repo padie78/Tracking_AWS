@@ -110,11 +110,14 @@ module "orchestration" {
   resolve_account_arn         = module.lambdas.resolve_account_arn
   cloudquery_inventory_arn    = module.lambdas.cloudquery_inventory_arn
   load_prowler_results_arn    = module.lambdas.load_prowler_results_arn
+  load_trivy_results_arn      = module.lambdas.load_trivy_results_arn
   fail_audit_arn              = module.lambdas.fail_audit_arn
   aggregate_audit_arn         = module.lambdas.aggregate_audit_arn
   prowler_cluster_arn         = module.prowler_fargate.cluster_arn
   prowler_task_definition_arn = module.prowler_fargate.task_definition_arn
+  trivy_task_definition_arn   = module.prowler_fargate.trivy_task_definition_arn
   prowler_container_name      = module.prowler_fargate.container_name
+  trivy_container_name        = module.prowler_fargate.trivy_container_name
   prowler_subnet_ids          = module.prowler_fargate.subnet_ids
   prowler_security_group_id   = module.prowler_fargate.security_group_id
   prowler_task_role_arn       = module.prowler_fargate.task_role_arn

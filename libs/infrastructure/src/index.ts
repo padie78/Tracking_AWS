@@ -13,6 +13,7 @@ export * from './lib/repositories/dynamodb-audit-inventory.repository';
 export * from './lib/orchestration/step-functions-audit-orchestrator.adapter';
 export * from './lib/engines/cloudquery-inventory.engine';
 export * from './lib/engines/prowler-security.engine';
+export * from './lib/engines/infracost-from-inventory.engine';
 export * from './lib/alerts/eventbridge-critical-alert.publisher';
 export * from './lib/repositories/dynamodb-alert-channel.repository';
 export * from './lib/reports/audit-report.generator';

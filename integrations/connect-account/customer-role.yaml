@@ -68,6 +68,17 @@ Resources:
                 Action:
                   - pricing:GetProducts
                 Resource: '*'
+              - Sid: EcrReadForTrivy
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:DescribeRepositories
+                  - ecr:DescribeImages
+                  - ecr:ListImages
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: '*'
 
 Outputs:
   RoleArn:

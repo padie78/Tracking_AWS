@@ -247,9 +247,9 @@ resource "aws_sfn_state_machine" "audit" {
                 Type = "Pass"
                 Result = {
                   secops = {
-                    findings = []
-                    engine   = "prowler-fargate"
-                    warning  = "prowler_branch_failed"
+                    engine  = "prowler-fargate"
+                    ok      = false
+                    warning = "prowler_branch_failed"
                   }
                 }
                 End = true
@@ -335,9 +335,9 @@ resource "aws_sfn_state_machine" "audit" {
                 Type = "Pass"
                 Result = {
                   appsec = {
-                    findings = []
-                    engine   = "trivy-fargate"
-                    warning  = "trivy_branch_failed"
+                    engine  = "trivy-fargate"
+                    ok      = false
+                    warning = "trivy_branch_failed"
                   }
                 }
                 End = true

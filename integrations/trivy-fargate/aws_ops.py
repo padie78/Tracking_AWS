@@ -69,6 +69,12 @@ def cmd_ecr_login(args: argparse.Namespace) -> None:
     )
 
 
+def _json_default(o: Any) -> Any:
+    if hasattr(o, "isoformat"):
+        return o.isoformat()
+    return str(o)
+
+
 def cmd_list_repos(args: argparse.Namespace) -> None:
     ecr = _session_from_env().client("ecr")
     repos: list[dict[str, Any]] = []
@@ -79,7 +85,10 @@ def cmd_list_repos(args: argparse.Namespace) -> None:
     except (ClientError, BotoCoreError) as exc:
         print(f"[trivy-fargate] describe_repositories failed: {exc}", file=sys.stderr)
         repos = []
-    Path(args.out).write_text(json.dumps({"repositories": repos}), encoding="utf-8")
+    Path(args.out).write_text(
+        json.dumps({"repositories": repos}, default=_json_default),
+        encoding="utf-8",
+    )
 
 
 def cmd_describe_images(args: argparse.Namespace) -> None:
@@ -92,7 +101,7 @@ def cmd_describe_images(args: argparse.Namespace) -> None:
     except (ClientError, BotoCoreError) as exc:
         print(json.dumps({"imageDetails": [], "error": str(exc)}))
         return
-    print(json.dumps({"imageDetails": details}))
+    print(json.dumps({"imageDetails": details}, default=_json_default))
 
 
 def cmd_s3_put(args: argparse.Namespace) -> None:

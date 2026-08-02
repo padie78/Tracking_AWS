@@ -1,4 +1,5 @@
 import type { Handler } from 'aws-lambda';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AuditFinding,
   type FindingDomain,
@@ -45,6 +46,16 @@ type SerializedFinding = {
   fixedVersion?: string;
 };
 
+/** Payload liviano desde load_* (sin findings — límite SFN ~256KB). */
+type EngineArtifactRef = {
+  findings?: SerializedFinding[];
+  sourceBucket?: string;
+  sourceKey?: string;
+  engine?: string;
+  warning?: string;
+  ok?: boolean;
+};
+
 type Input = {
   tenantId: string;
   auditId: string;
@@ -59,9 +70,41 @@ type Input = {
     resources?: InventoryResourceView[];
     infracostLines?: InfracostLineItem[];
   };
-  secops: { findings: SerializedFinding[]; warning?: string; engine?: string };
-  appsec?: { findings: SerializedFinding[]; warning?: string; engine?: string };
+  secops: EngineArtifactRef;
+  appsec?: EngineArtifactRef;
 };
+
+const s3 = new S3Client({});
+
+async function loadFindingsFromS3(
+  ref: EngineArtifactRef | undefined,
+  fallbackKey: string,
+): Promise<SerializedFinding[]> {
+  if (ref?.findings && ref.findings.length > 0) return ref.findings;
+
+  const bucket =
+    ref?.sourceBucket ?? process.env['PROWLER_FINDINGS_BUCKET'] ?? '';
+  const key = ref?.sourceKey ?? fallbackKey;
+  if (!bucket || !key) {
+    return [];
+  }
+
+  try {
+    const result = await s3.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const raw = (await result.Body?.transformToString('utf-8')) ?? '';
+    const parsed = JSON.parse(raw) as { findings?: SerializedFinding[] };
+    return parsed.findings ?? [];
+  } catch (err) {
+    console.error('loadFindingsFromS3 failed', {
+      bucket,
+      key,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
 
 function scoreFromFindings(
   findings: SerializedFinding[],
@@ -161,8 +204,11 @@ function serializeFinding(f: AuditFinding): SerializedFinding {
 }
 
 async function resolveSecopsFindings(event: Input): Promise<SerializedFinding[]> {
-  const fromProwler = event.secops?.findings ?? [];
-  if (fromProwler.length > 0) return fromProwler;
+  const fromS3 = await loadFindingsFromS3(
+    event.secops,
+    `tenants/${event.tenantId}/audits/${event.auditId}/prowler/findings.json`,
+  );
+  if (fromS3.length > 0) return fromS3;
 
   if (!event.roleArn || !event.externalId) {
     console.warn('SecOps vacío y sin roleArn/externalId para fallback inline');
@@ -219,7 +265,10 @@ export const handler: Handler<Input> = async (event) => {
   }
 
   const secopsFindings = await resolveSecopsFindings(event);
-  const appsecFindings = event.appsec?.findings ?? [];
+  const appsecFindings = await loadFindingsFromS3(
+    event.appsec,
+    `tenants/${event.tenantId}/audits/${event.auditId}/trivy/findings.json`,
+  );
 
   const securityScore = scoreFromFindings(
     [...secopsFindings, ...appsecFindings],

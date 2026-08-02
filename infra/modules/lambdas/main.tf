@@ -294,9 +294,10 @@ resource "aws_lambda_function" "aggregate_audit" {
 
   environment {
     variables = merge(local.core_env, local.audit_env, {
-      APPSYNC_ENDPOINT = "https://placeholder-will-be-patched"
-      APPSYNC_API_KEY  = "placeholder"
-      BEDROCK_MODEL_ID = var.bedrock_model_id
+      APPSYNC_ENDPOINT        = "https://placeholder-will-be-patched"
+      APPSYNC_API_KEY         = "placeholder"
+      BEDROCK_MODEL_ID        = var.bedrock_model_id
+      PROWLER_FINDINGS_BUCKET = var.prowler_findings_bucket
     })
   }
 

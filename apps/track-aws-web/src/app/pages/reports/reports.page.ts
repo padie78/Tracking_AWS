@@ -193,7 +193,7 @@ export class ReportsPageComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.auditLive.refreshAudits();
+      await this.auditLive.refreshAudits({ preferCompleted: true });
       const first = this.completed()[0];
       if (first) await this.select(first.auditId);
     } catch (err) {

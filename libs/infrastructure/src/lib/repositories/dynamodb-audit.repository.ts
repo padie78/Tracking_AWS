@@ -70,21 +70,33 @@ export class DynamoDbAuditJobRepository
   }
 
   async listByTenant(tenantId: string, limit = 20): Promise<AuditJob[]> {
-    const result = await this.doc.send(
-      new QueryCommand({
-        TableName: tableName(),
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
-        ExpressionAttributeValues: {
-          ':pk': DynamoKeys.tenantPk(tenantId),
-          ':skPrefix': DynamoKeys.auditSkPrefix(),
-        },
-        ScanIndexForward: false,
-        Limit: limit,
-      }),
-    );
-    return (result.Items ?? []).map((item) =>
-      toAudit(item as Record<string, unknown>),
-    );
+    const items: Record<string, unknown>[] = [];
+    let exclusiveStartKey: Record<string, unknown> | undefined;
+
+    do {
+      const result = await this.doc.send(
+        new QueryCommand({
+          TableName: tableName(),
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+          ExpressionAttributeValues: {
+            ':pk': DynamoKeys.tenantPk(tenantId),
+            ':skPrefix': DynamoKeys.auditSkPrefix(),
+          },
+          ExclusiveStartKey: exclusiveStartKey,
+        }),
+      );
+      for (const item of result.Items ?? []) {
+        items.push(item as Record<string, unknown>);
+      }
+      exclusiveStartKey = result.LastEvaluatedKey as
+        | Record<string, unknown>
+        | undefined;
+    } while (exclusiveStartKey);
+
+    return items
+      .map((item) => toAudit(item))
+      .sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso))
+      .slice(0, limit);
   }
 }
 
@@ -173,17 +185,31 @@ export class DynamoDbAuditFindingRepository
     tenantId: string,
     auditId: string,
   ): Promise<AuditFinding[]> {
-    const result = await this.doc.send(
-      new QueryCommand({
-        TableName: tableName(),
-        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
-        ExpressionAttributeValues: {
-          ':pk': DynamoKeys.auditFindingsPk(tenantId, auditId),
-          ':skPrefix': DynamoKeys.findingSkPrefix(),
-        },
-      }),
-    );
-    return (result.Items ?? []).map((item) =>
+    const table = tableName();
+    const items: Record<string, unknown>[] = [];
+    let exclusiveStartKey: Record<string, unknown> | undefined;
+
+    do {
+      const result = await this.doc.send(
+        new QueryCommand({
+          TableName: table,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :skPrefix)',
+          ExpressionAttributeValues: {
+            ':pk': DynamoKeys.auditFindingsPk(tenantId, auditId),
+            ':skPrefix': DynamoKeys.findingSkPrefix(),
+          },
+          ExclusiveStartKey: exclusiveStartKey,
+        }),
+      );
+      for (const item of result.Items ?? []) {
+        items.push(item as Record<string, unknown>);
+      }
+      exclusiveStartKey = result.LastEvaluatedKey as
+        | Record<string, unknown>
+        | undefined;
+    } while (exclusiveStartKey);
+
+    return items.map((item) =>
       AuditFinding.reconstitute({
         tenantId: String(item['tenantId']),
         auditId: String(item['auditId']),

@@ -17,7 +17,10 @@ export class GetAuditUseCase {
       return audit ? [toView(audit)] : [];
     }
     const list = await this.audits.listByTenant(input.tenantId, input.limit ?? 20);
-    return list.map(toView);
+    // SK = AUDIT#<uuid> no ordena por tiempo; ordenamos por createdAtIso desc.
+    return list
+      .map(toView)
+      .sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso));
   }
 }
 

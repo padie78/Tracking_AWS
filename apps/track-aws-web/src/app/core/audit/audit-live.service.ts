@@ -125,26 +125,62 @@ export class AuditLiveService {
     await this.refreshAudits();
   }
 
-  async refreshAudits(): Promise<void> {
+  async refreshAudits(opts?: {
+    /** Prefer completed audits with findings (FinOps / SecOps / Informe). */
+    preferCompleted?: boolean;
+  }): Promise<void> {
     if (!this.auth.tenantId()) return;
     this._busy.set(true);
     this._error.set(null);
     try {
-      const list = await this.scan.listAudits({ limit: 30 });
+      const raw = await this.scan.listAudits({ limit: 50 });
+      const list = sortAuditsNewestFirst(raw);
       this._audits.set(list);
-      const running = list.find((a) => !TERMINAL.has(a.status));
-      const focus = running ?? list[0] ?? null;
+
+      const accountId = this.tenant.activeAccountId();
+      const scoped = accountId
+        ? list.filter((a) => a.accountId === accountId)
+        : list;
+      const pool = scoped.length > 0 ? scoped : list;
+
+      const previousId = this._activeAuditId();
+      const previousStillValid =
+        !!previousId && pool.some((a) => a.auditId === previousId);
+
+      const running = pool.find((a) => !TERMINAL.has(a.status));
+      const bestCompleted = pickBestCompleted(pool);
+
+      let focus =
+        opts?.preferCompleted && bestCompleted
+          ? bestCompleted
+          : running ??
+            (previousStillValid
+              ? pool.find((a) => a.auditId === previousId) ?? null
+              : null) ??
+            bestCompleted ??
+            pool[0] ??
+            null;
+
+      // Si hay un audit en curso, no lo ocultamos salvo que pidamos completed.
+      if (!opts?.preferCompleted && running) focus = running;
+
       if (focus) {
         this._activeAuditId.set(focus.auditId);
         const tenantId = this.auth.tenantId();
         if (tenantId) {
           this.realtime.ensureConnected(tenantId, { auditId: focus.auditId });
         }
-        if (running) this.startPolling();
-        else this.stopPolling();
+        if (running && !opts?.preferCompleted) this.startPolling();
+        else if (!running) this.stopPolling();
+
         if (TERMINAL.has(focus.status) || focus.findingCount > 0) {
           await this.refreshFindings(focus.auditId);
+        } else {
+          this._findings.set([]);
         }
+      } else {
+        this._activeAuditId.set(null);
+        this._findings.set([]);
       }
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : String(err));
@@ -163,6 +199,7 @@ export class AuditLiveService {
       this._findings.set(await this.scan.listAuditFindings(id));
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : String(err));
+      throw err;
     }
   }
 
@@ -170,7 +207,18 @@ export class AuditLiveService {
     this._activeAuditId.set(auditId);
     const tenantId = this.auth.tenantId();
     if (tenantId) this.realtime.ensureConnected(tenantId, { auditId });
-    void this.refreshFindings(auditId);
+    void this.refreshFindings(auditId).catch(() => {
+      /* error ya en this._error */
+    });
+  }
+
+  /** Latest completed audit for the active account (analysis pages). */
+  bestCompletedAudit(): AuditJobView | null {
+    const accountId = this.tenant.activeAccountId();
+    const list = this._audits().filter(
+      (a) => !accountId || a.accountId === accountId,
+    );
+    return pickBestCompleted(list.length ? list : this._audits());
   }
 
   async startAudit(): Promise<string | null> {
@@ -295,6 +343,24 @@ export class AuditLiveService {
     clearInterval(this.pollTimer);
     this.pollTimer = null;
   }
+}
+
+function sortAuditsNewestFirst(list: AuditJobView[]): AuditJobView[] {
+  return [...list].sort((a, b) =>
+    b.createdAtIso.localeCompare(a.createdAtIso),
+  );
+}
+
+function pickBestCompleted(list: AuditJobView[]): AuditJobView | null {
+  const completed = list.filter((a) => a.status === 'completed');
+  if (completed.length === 0) return null;
+  const withFindings = completed
+    .filter((a) => a.findingCount > 0)
+    .sort((a, b) => b.createdAtIso.localeCompare(a.createdAtIso));
+  if (withFindings.length > 0) return withFindings[0];
+  return [...completed].sort((a, b) =>
+    b.createdAtIso.localeCompare(a.createdAtIso),
+  )[0];
 }
 
 function buildStages(status: string): AuditStage[] {

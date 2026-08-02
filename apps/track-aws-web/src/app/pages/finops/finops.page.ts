@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
@@ -18,7 +19,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
   standalone: true,
   selector: 'app-finops-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [DecimalPipe, PageHeaderComponent, TaEchartComponent],
+  imports: [DecimalPipe, PageHeaderComponent, TaEchartComponent, RouterLink],
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
@@ -33,6 +34,16 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
 
       @if (error()) {
         <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
+      }
+
+      @if (audit.activeAudit(); as a) {
+        <div class="ta-meta" style="margin-bottom:0.75rem">
+          Audit <code>{{ a.auditId.slice(0, 8) }}…</code>
+          · {{ a.status }} · {{ a.findingCount }} findings totales · cuenta
+          {{ a.accountId }}
+          ·
+          <a class="ta-link" routerLink="/tabs/audits">cambiar en Historial</a>
+        </div>
       }
 
       <div class="ta-tabs">
@@ -56,7 +67,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
           </div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Hallazgos</div>
+          <div class="ta-kpi__label">Hallazgos FinOps</div>
           <div class="ta-kpi__value">{{ filtered().length }}</div>
         </div>
       </div>
@@ -87,7 +98,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
               </div>
             </li>
           } @empty {
-            <li class="ta-meta">Sin findings FinOps en el audit activo.</li>
+            <li class="ta-meta">{{ emptyHint() }}</li>
           }
         </ul>
       </div>
@@ -95,7 +106,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
   `,
 })
 export class FinopsPageComponent implements OnInit {
-  private readonly audit = inject(AuditLiveService);
+  readonly audit = inject(AuditLiveService);
 
   readonly tabs: Array<{ id: FinopsTab; label: string }> = [
     { id: 'all', label: 'Todos' },
@@ -118,6 +129,21 @@ export class FinopsPageComponent implements OnInit {
   readonly filteredSavings = computed(() =>
     this.filtered().reduce((acc, f) => acc + f.estimatedMonthlySavingsUsd, 0),
   );
+
+  readonly emptyHint = computed(() => {
+    const a = this.audit.activeAudit();
+    const total = this.audit.findings().length;
+    if (!a) {
+      return 'No hay audit para esta cuenta. Ejecutá uno desde Audits o Dashboard.';
+    }
+    if (a.status !== 'completed') {
+      return `El audit activo está en «${a.status}». Esperá a completed o elegí uno terminado en Historial.`;
+    }
+    if (total === 0) {
+      return 'El audit completed no tiene findings persistidos. Redeployá aggregate_audit/api y corré un audit nuevo.';
+    }
+    return 'Sin findings FinOps en este audit (no hubo idle/rightsizing/orphan). Revisá Inventario o SecOps.';
+  });
 
   readonly barOpt = computed(() =>
     savingsBarOption(
@@ -147,7 +173,7 @@ export class FinopsPageComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.audit.refreshAudits();
+      await this.audit.refreshAudits({ preferCompleted: true });
       const id = this.audit.activeAudit()?.auditId;
       if (id) await this.audit.refreshFindings(id);
     } catch (err) {

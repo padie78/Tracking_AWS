@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
@@ -19,7 +20,13 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
   standalone: true,
   selector: 'app-secops-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [DecimalPipe, PageHeaderComponent, StatusBadgeComponent, TaEchartComponent],
+  imports: [
+    DecimalPipe,
+    PageHeaderComponent,
+    StatusBadgeComponent,
+    TaEchartComponent,
+    RouterLink,
+  ],
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
@@ -61,6 +68,15 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
         </div>
       </div>
 
+      @if (audit.activeAudit(); as a) {
+        <div class="ta-meta" style="margin:0.75rem 0">
+          Audit <code>{{ a.auditId.slice(0, 8) }}…</code>
+          · {{ a.findingCount }} findings totales · cuenta {{ a.accountId }}
+          ·
+          <a class="ta-link" routerLink="/tabs/audits">cambiar en Historial</a>
+        </div>
+      }
+
       <div class="ta-tabs" style="margin-top:1rem">
         @for (t of tabs; track t.id) {
           <button
@@ -96,10 +112,7 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
               </div>
             </li>
           } @empty {
-            <li class="ta-meta">
-              Sin findings SecOps. Si el audit corrió, Prowler no subió FAIL o falló el branch —
-              el agregador ahora corre checks IAM/SG/S3 de respaldo. Ejecutá un audit nuevo tras el deploy.
-            </li>
+            <li class="ta-meta">{{ emptyHint() }}</li>
           }
         </ul>
       </div>
@@ -146,6 +159,21 @@ export class SecopsPageComponent implements OnInit {
 
   readonly pieOpt = computed(() => severityPieOption(this.counts()));
 
+  readonly emptyHint = computed(() => {
+    const a = this.audit.activeAudit();
+    const total = this.audit.findings().length;
+    if (!a) {
+      return 'No hay audit para esta cuenta. Ejecutá uno desde Audits o Dashboard.';
+    }
+    if (a.status !== 'completed') {
+      return `El audit activo está en «${a.status}». Esperá a completed o elegí uno terminado en Historial.`;
+    }
+    if (total === 0) {
+      return 'Sin findings persistidos. Redeployá aggregate_audit (fallback SecOps) + api y corré un audit nuevo.';
+    }
+    return 'Sin findings SecOps en este audit (Prowler vacío y fallback sin hits). Revisá FinOps o el Informe.';
+  });
+
   attackBucket(
     category: string,
     title: string,
@@ -166,7 +194,7 @@ export class SecopsPageComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.audit.refreshAudits();
+      await this.audit.refreshAudits({ preferCompleted: true });
       const id = this.audit.activeAudit()?.auditId;
       if (id) await this.audit.refreshFindings(id);
     } catch (err) {

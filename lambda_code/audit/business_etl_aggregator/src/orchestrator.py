@@ -33,7 +33,7 @@ from friendly_copy import (
     put_cached_friendly,
 )
 from i18n_resolver import build_i18n_bundle, resolve_locale_key, resolve_metadata
-from models import AggregatorEvent, EnrichedFinding, FriendlyCopy, LlmClassification
+from models import AggregatorEvent, BilingualFriendly, EnrichedFinding, LlmClassification
 from noise_filter import prefilter_findings
 
 logger = logging.getLogger(__name__)
@@ -96,44 +96,48 @@ def _bedrock_severity_ok(row: dict[str, Any]) -> bool:
 
 def _resolve_friendly(
     *,
-    tenant_id: str,
     row: dict[str, Any],
     classified: LlmClassification,
     locale_key: str,
     mapped_ok: bool,
     es_entry: dict[str, str],
+    en_entry: dict[str, str],
     metadata: dict[str, Any],
     domain: str,
-    memory_cache: dict[str, FriendlyCopy],
+    memory_cache: dict[str, BilingualFriendly],
     bedrock_budget: list[int],
     stats: dict[str, int],
-) -> FriendlyCopy:
-    """i18n específico → memoria/Dynamo cache → Bedrock (dedupe por check_id)."""
+) -> BilingualFriendly:
+    """i18n específico → memoria/Dynamo cache global → Bedrock (dedupe por check_id)."""
     check_key = normalize_check_key(_row_check_id(row) or classified["native_code"])
 
-    # 1) Diccionario i18n no genérico
-    if not needs_llm_friendly(locale_key, mapped_ok):
-        stats["friendlyFromDict"] += 1
+    def from_dict() -> BilingualFriendly:
         return friendly_from_i18n(
             locale_key=locale_key,
             es=es_entry,  # type: ignore[arg-type]
+            en=en_entry,  # type: ignore[arg-type]
             metadata=metadata,  # type: ignore[arg-type]
             domain=domain,
         )
 
-    # 2) Memoria del run (mismo check_id muchas veces)
+    # 1) Diccionario i18n no genérico
+    if not needs_llm_friendly(locale_key, mapped_ok):
+        stats["friendlyFromDict"] += 1
+        return from_dict()
+
+    # 2) Memoria del run
     if check_key and check_key in memory_cache:
         stats["friendlyFromMemory"] += 1
         return memory_cache[check_key]
 
-    # 3) Caché Dynamo por tenant + check
-    cached = get_cached_friendly(tenant_id, check_key) if check_key else None
+    # 3) Caché Dynamo global
+    cached = get_cached_friendly(check_key) if check_key else None
     if cached is not None:
         memory_cache[check_key] = cached
         stats["friendlyFromCache"] += 1
         return cached
 
-    # 4) Bedrock (presupuesto compartido, 1 llamada por check_id único)
+    # 4) Bedrock (1 llamada por check_id único)
     if (
         _bedrock_severity_ok(row)
         and bedrock_budget[0] > 0
@@ -144,7 +148,6 @@ def _resolve_friendly(
             bedrock_budget[1] += 1
             time.sleep(0.12)
             if ai is not None:
-                # Merge clasificación si era desconocido
                 if not mapped_ok:
                     classified.update(
                         {
@@ -157,21 +160,16 @@ def _resolve_friendly(
                 friendly = ai.get("friendly")
                 if friendly:
                     memory_cache[check_key] = friendly
-                    put_cached_friendly(tenant_id, check_key, friendly)
+                    put_cached_friendly(check_key, friendly)
                     stats["friendlyFromBedrock"] += 1
                     return friendly
         except Exception:
             bedrock_budget[1] += 1
             logger.warning("bedrock_friendly_failed", exc_info=True)
 
-    # 5) Fallback i18n genérico
+    # 5) Fallback i18n
     stats["friendlyFallback"] += 1
-    return friendly_from_i18n(
-        locale_key=locale_key,
-        es=es_entry,  # type: ignore[arg-type]
-        metadata=metadata,  # type: ignore[arg-type]
-        domain=domain,
-    )
+    return from_dict()
 
 
 def _enrich_one(
@@ -181,7 +179,7 @@ def _enrich_one(
     audit_id: str,
     raw: dict[str, Any],
     classified: LlmClassification,
-    friendly: FriendlyCopy,
+    friendly: BilingualFriendly,
 ) -> EnrichedFinding:
     locale_key = resolve_locale_key(classified["native_code"], classified["finding_id"])
     metadata = resolve_metadata(locale_key)
@@ -209,11 +207,17 @@ def _enrich_one(
                 savings = 0.0
 
     i18n = build_i18n_bundle(locale_key, variables, savings)
-    # Preferir copy amigable resuelto (dict/cache/Bedrock) sobre plantilla genérica
-    i18n_es = dict(i18n["es"])
-    i18n_es["explanation"] = friendly["headline"]
-    i18n_es["business_impact"] = friendly["why"]
-    i18n = {**i18n, "es": i18n_es}  # type: ignore[assignment]
+    # Overlay bilingual friendly onto i18n bundles
+    i18n = {
+        "es": {
+            "explanation": friendly["es"]["headline"],
+            "business_impact": friendly["es"]["why"],
+        },
+        "en": {
+            "explanation": friendly["en"]["headline"],
+            "business_impact": friendly["en"]["why"],
+        },
+    }
 
     domain = _domain_for(classified["finding_id"], classified["native_code"])
     source = str(raw.get("_source_engine") or raw.get("engine") or "unknown")
@@ -262,7 +266,7 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
     dry_run = os.environ.get("ETL_DRY_RUN", "").lower() in {"1", "true", "yes"}
     # [max, used]
     bedrock_budget = [_bedrock_max(), 0]
-    memory_cache: dict[str, FriendlyCopy] = {}
+    memory_cache: dict[str, BilingualFriendly] = {}
     stats = {
         "friendlyFromDict": 0,
         "friendlyFromMemory": 0,
@@ -293,12 +297,12 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
             prelim_i18n = build_i18n_bundle(locale_key, classified["extracted_variables"], 0.0)
 
             friendly = _resolve_friendly(
-                tenant_id=tenant_id,
                 row=row,
                 classified=classified,
                 locale_key=locale_key,
                 mapped_ok=mapped_ok,
                 es_entry=prelim_i18n["es"],
+                en_entry=prelim_i18n["en"],
                 metadata=metadata,
                 domain=domain,
                 memory_cache=memory_cache,

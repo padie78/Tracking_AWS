@@ -89,6 +89,14 @@ type AuditFinding @aws_cognito_user_pools {
   friendlyWhy: String
   friendlyAction: String
   friendlyArea: String
+  friendlyHeadlineEs: String
+  friendlyWhyEs: String
+  friendlyActionEs: String
+  friendlyAreaEs: String
+  friendlyHeadlineEn: String
+  friendlyWhyEn: String
+  friendlyActionEn: String
+  friendlyAreaEn: String
   createdAtIso: AWSDateTime!
 }
 

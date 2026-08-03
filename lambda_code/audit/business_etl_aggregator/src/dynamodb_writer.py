@@ -64,17 +64,11 @@ def put_enriched_findings(findings: Iterable[EnrichedFinding]) -> int:
         for f in findings:
             fid = f"{f.native_code}#{f.resource_id}"[:180]
             friendly = f.friendly
-            title = (
-                (friendly["headline"] if friendly else f.i18n["es"]["explanation"])[:240]
-            )
-            rationale = (
-                friendly["why"] if friendly else f.i18n["es"]["business_impact"]
-            )
-            action = (
-                friendly["action"]
-                if friendly
-                else f.metadata["solution_slug"]
-            )
+            es = friendly["es"] if friendly else None
+            en = friendly["en"] if friendly else None
+            title = (es["headline"] if es else f.i18n["es"]["explanation"])[:240]
+            rationale = es["why"] if es else f.i18n["es"]["business_impact"]
+            action = es["action"] if es else f.metadata["solution_slug"]
             item = {
                 "PK": audit_findings_pk(f.tenant_id, f.audit_id),
                 "SK": finding_sk(f.domain, fid),
@@ -96,10 +90,20 @@ def put_enriched_findings(findings: Iterable[EnrichedFinding]) -> int:
                 "rationale": rationale,
                 "recommendedAction": action,
                 "checkId": f.check_id or f.native_code,
-                "friendlyHeadline": friendly["headline"] if friendly else title,
-                "friendlyWhy": friendly["why"] if friendly else rationale,
-                "friendlyAction": friendly["action"] if friendly else action,
-                "friendlyArea": friendly["area"] if friendly else f.metadata["aws_service"],
+                # Bilingüe
+                "friendlyHeadlineEs": es["headline"] if es else title,
+                "friendlyWhyEs": es["why"] if es else rationale,
+                "friendlyActionEs": es["action"] if es else action,
+                "friendlyAreaEs": es["area"] if es else f.metadata["aws_service"],
+                "friendlyHeadlineEn": en["headline"] if en else f.i18n["en"]["explanation"][:240],
+                "friendlyWhyEn": en["why"] if en else f.i18n["en"]["business_impact"],
+                "friendlyActionEn": en["action"] if en else action,
+                "friendlyAreaEn": en["area"] if en else f.metadata["aws_service"],
+                # Legacy alias = ES (SPA vieja)
+                "friendlyHeadline": es["headline"] if es else title,
+                "friendlyWhy": es["why"] if es else rationale,
+                "friendlyAction": es["action"] if es else action,
+                "friendlyArea": es["area"] if es else f.metadata["aws_service"],
                 "estimatedMonthlySavingsUsd": _to_dynamo(f.calculated_savings_usd),
                 "CalculatedSavingsNumeric": _to_dynamo(f.calculated_savings_usd),
                 "awsService": f.metadata["aws_service"],
@@ -186,19 +190,28 @@ def patch_operational_findings_friendly(
                 continue
 
             fr = match.friendly
+            es, en = fr["es"], fr["en"]
             try:
                 table.update_item(
                     Key={"PK": pk, "SK": sk},
                     UpdateExpression=(
-                        "SET friendlyHeadline = :h, friendlyWhy = :w, "
-                        "friendlyAction = :a, friendlyArea = :ar, "
-                        "title = :h, rationale = :w, recommendedAction = :a"
+                        "SET friendlyHeadlineEs = :hes, friendlyWhyEs = :wes, "
+                        "friendlyActionEs = :aes, friendlyAreaEs = :ares, "
+                        "friendlyHeadlineEn = :hen, friendlyWhyEn = :wen, "
+                        "friendlyActionEn = :aen, friendlyAreaEn = :aren, "
+                        "friendlyHeadline = :hes, friendlyWhy = :wes, "
+                        "friendlyAction = :aes, friendlyArea = :ares, "
+                        "title = :hes, rationale = :wes, recommendedAction = :aes"
                     ),
                     ExpressionAttributeValues={
-                        ":h": fr["headline"],
-                        ":w": fr["why"],
-                        ":a": fr["action"],
-                        ":ar": fr["area"],
+                        ":hes": es["headline"],
+                        ":wes": es["why"],
+                        ":aes": es["action"],
+                        ":ares": es["area"],
+                        ":hen": en["headline"],
+                        ":wen": en["why"],
+                        ":aen": en["action"],
+                        ":aren": en["area"],
                     },
                 )
                 patched += 1

@@ -27,6 +27,7 @@ import {
   humanizeFinding,
   type FindingLike,
 } from '../../core/copy/friendly-finding';
+import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 
 @Component({
   standalone: true,
@@ -182,6 +183,7 @@ import {
 export class DashboardPageComponent implements OnInit {
   readonly tenant = inject(TenantContextService);
   readonly audit = inject(AuditLiveService);
+  readonly locale = inject(UiLocaleService);
 
   readonly score = computed(() => {
     const live = this.audit.liveStatus();
@@ -280,7 +282,7 @@ export class DashboardPageComponent implements OnInit {
   });
 
   friendly(f: FindingLike): FriendlyFinding {
-    return humanizeFinding(f);
+    return humanizeFinding(f, this.locale.lang());
   }
 
   ngOnInit(): void {

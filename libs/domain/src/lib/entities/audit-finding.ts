@@ -33,6 +33,14 @@ export interface AuditFindingProps {
   friendlyWhy?: string | null;
   friendlyAction?: string | null;
   friendlyArea?: string | null;
+  friendlyHeadlineEs?: string | null;
+  friendlyWhyEs?: string | null;
+  friendlyActionEs?: string | null;
+  friendlyAreaEs?: string | null;
+  friendlyHeadlineEn?: string | null;
+  friendlyWhyEn?: string | null;
+  friendlyActionEn?: string | null;
+  friendlyAreaEn?: string | null;
   createdAtIso: string;
 }
 
@@ -105,6 +113,30 @@ export class AuditFinding {
   }
   get friendlyArea(): string | null {
     return this.props.friendlyArea ?? null;
+  }
+  get friendlyHeadlineEs(): string | null {
+    return this.props.friendlyHeadlineEs ?? null;
+  }
+  get friendlyWhyEs(): string | null {
+    return this.props.friendlyWhyEs ?? null;
+  }
+  get friendlyActionEs(): string | null {
+    return this.props.friendlyActionEs ?? null;
+  }
+  get friendlyAreaEs(): string | null {
+    return this.props.friendlyAreaEs ?? null;
+  }
+  get friendlyHeadlineEn(): string | null {
+    return this.props.friendlyHeadlineEn ?? null;
+  }
+  get friendlyWhyEn(): string | null {
+    return this.props.friendlyWhyEn ?? null;
+  }
+  get friendlyActionEn(): string | null {
+    return this.props.friendlyActionEn ?? null;
+  }
+  get friendlyAreaEn(): string | null {
+    return this.props.friendlyAreaEn ?? null;
   }
   get createdAtIso(): string {
     return this.props.createdAtIso;

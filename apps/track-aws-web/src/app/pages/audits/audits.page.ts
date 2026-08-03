@@ -10,6 +10,7 @@ import {
   humanizeFinding,
   type FindingLike,
 } from '../../core/copy/friendly-finding';
+import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 
 @Component({
   standalone: true,
@@ -138,11 +139,12 @@ import {
 export class AuditsPageComponent implements OnInit {
   readonly audit = inject(AuditLiveService);
   readonly tenant = inject(TenantContextService);
+  readonly locale = inject(UiLocaleService);
 
   readonly selected = computed(() => this.audit.activeAudit());
 
   friendly(f: FindingLike): FriendlyFinding {
-    return humanizeFinding(f);
+    return humanizeFinding(f, this.locale.lang());
   }
 
   ngOnInit(): void {

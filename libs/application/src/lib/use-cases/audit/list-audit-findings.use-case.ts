@@ -34,6 +34,14 @@ export class ListAuditFindingsUseCase {
         friendlyWhy: f.friendlyWhy,
         friendlyAction: f.friendlyAction,
         friendlyArea: f.friendlyArea,
+        friendlyHeadlineEs: f.friendlyHeadlineEs,
+        friendlyWhyEs: f.friendlyWhyEs,
+        friendlyActionEs: f.friendlyActionEs,
+        friendlyAreaEs: f.friendlyAreaEs,
+        friendlyHeadlineEn: f.friendlyHeadlineEn,
+        friendlyWhyEn: f.friendlyWhyEn,
+        friendlyActionEn: f.friendlyActionEn,
+        friendlyAreaEn: f.friendlyAreaEn,
         createdAtIso: f.createdAtIso,
       }));
   }

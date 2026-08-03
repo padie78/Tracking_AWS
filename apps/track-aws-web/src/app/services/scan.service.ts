@@ -67,6 +67,14 @@ export interface AuditFindingView {
   friendlyWhy?: string | null;
   friendlyAction?: string | null;
   friendlyArea?: string | null;
+  friendlyHeadlineEs?: string | null;
+  friendlyWhyEs?: string | null;
+  friendlyActionEs?: string | null;
+  friendlyAreaEs?: string | null;
+  friendlyHeadlineEn?: string | null;
+  friendlyWhyEn?: string | null;
+  friendlyActionEn?: string | null;
+  friendlyAreaEn?: string | null;
   createdAtIso: string;
 }
 
@@ -304,6 +312,14 @@ const LIST_AUDIT_FINDINGS = /* GraphQL */ `
       friendlyWhy
       friendlyAction
       friendlyArea
+      friendlyHeadlineEs
+      friendlyWhyEs
+      friendlyActionEs
+      friendlyAreaEs
+      friendlyHeadlineEn
+      friendlyWhyEn
+      friendlyActionEn
+      friendlyAreaEn
       createdAtIso
     }
   }

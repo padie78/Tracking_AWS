@@ -260,6 +260,26 @@ export class DynamoDbAuditFindingRepository
         friendlyWhy: (item['friendlyWhy'] as string | null) ?? null,
         friendlyAction: (item['friendlyAction'] as string | null) ?? null,
         friendlyArea: (item['friendlyArea'] as string | null) ?? null,
+        friendlyHeadlineEs:
+          (item['friendlyHeadlineEs'] as string | null) ??
+          (item['friendlyHeadline'] as string | null) ??
+          null,
+        friendlyWhyEs:
+          (item['friendlyWhyEs'] as string | null) ??
+          (item['friendlyWhy'] as string | null) ??
+          null,
+        friendlyActionEs:
+          (item['friendlyActionEs'] as string | null) ??
+          (item['friendlyAction'] as string | null) ??
+          null,
+        friendlyAreaEs:
+          (item['friendlyAreaEs'] as string | null) ??
+          (item['friendlyArea'] as string | null) ??
+          null,
+        friendlyHeadlineEn: (item['friendlyHeadlineEn'] as string | null) ?? null,
+        friendlyWhyEn: (item['friendlyWhyEn'] as string | null) ?? null,
+        friendlyActionEn: (item['friendlyActionEn'] as string | null) ?? null,
+        friendlyAreaEn: (item['friendlyAreaEn'] as string | null) ?? null,
         createdAtIso: String(item['createdAtIso']),
       }),
     );

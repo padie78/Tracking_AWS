@@ -10,7 +10,9 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { DropdownModule } from 'primeng/dropdown';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuthService } from '../../core/services/auth.service';
+import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 import {
   NAV_ICON_CLASS,
   navFocusForRole,
@@ -43,6 +45,7 @@ type AccountOption = {
     FormsModule,
     ButtonModule,
     DropdownModule,
+    SelectButtonModule,
     NotificationCenterComponent,
     ToastStackComponent,
     StatusBadgeComponent,
@@ -91,6 +94,16 @@ type AccountOption = {
         </div>
 
         <div class="ta-header__right">
+          <p-selectButton
+            [options]="locale.langOptions"
+            [ngModel]="locale.lang()"
+            (ngModelChange)="locale.setLang($event)"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            aria-label="Language"
+            styleClass="ta-lang-toggle"
+          />
           <div class="ta-shell__live-row">
             <span class="ta-dot" [attr.data-state]="audit.connectionState()"></span>
             <span class="ta-meta">{{ audit.connectionState() }}</span>
@@ -167,6 +180,7 @@ export class ShellPageComponent implements OnInit {
   readonly tenant = inject(TenantContextService);
   readonly audit = inject(AuditLiveService);
   readonly notes = inject(NotificationService);
+  readonly locale = inject(UiLocaleService);
   private readonly scanService = inject(ScanService);
   readonly roleLabel = roleLabel;
   readonly iconClass = NAV_ICON_CLASS;

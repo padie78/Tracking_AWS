@@ -143,6 +143,18 @@ code,
   justify-content: flex-end;
 }
 
+.ta-lang-toggle.p-selectbutton {
+  flex-shrink: 0;
+}
+
+.ta-lang-toggle.p-selectbutton .p-button {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-width: 2.25rem;
+}
+
 .ta-header__center {
   min-width: 0;
 }

@@ -20,6 +20,7 @@ import {
   humanizeFinding,
   type FindingLike,
 } from '../../core/copy/friendly-finding';
+import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 
 type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
 
@@ -115,8 +116,8 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
                   }
                   · ~USD {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }}/mes
                 </div>
-                <div class="ta-meta"><strong>Por qué importa:</strong> {{ friendly(f).whyItMatters }}</div>
-                <div class="ta-meta"><strong>Qué hacer:</strong> {{ friendly(f).whatToDo }}</div>
+                <div class="ta-meta"><strong>{{ locale.whyLabel() }}:</strong> {{ friendly(f).whyItMatters }}</div>
+                <div class="ta-meta"><strong>{{ locale.actionLabel() }}:</strong> {{ friendly(f).whatToDo }}</div>
               </div>
             </li>
           } @empty {
@@ -129,6 +130,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
 })
 export class FinopsPageComponent implements OnInit {
   readonly audit = inject(AuditLiveService);
+  readonly locale = inject(UiLocaleService);
 
   readonly tabs: Array<{ id: FinopsTab; label: string }> = [
     { id: 'all', label: 'Todos' },
@@ -189,7 +191,7 @@ export class FinopsPageComponent implements OnInit {
   });
 
   friendly(f: FindingLike): FriendlyFinding {
-    return humanizeFinding(f);
+    return humanizeFinding(f, this.locale.lang());
   }
 
   ngOnInit(): void {

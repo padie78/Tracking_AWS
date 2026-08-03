@@ -22,7 +22,7 @@ class ExtractedVariables(TypedDict):
 
 
 class FriendlyCopy(TypedDict):
-    """Texto ES para novatos (headline / por qué / qué hacer)."""
+    """Copy amigable en un idioma (headline / por qué / qué hacer)."""
 
     headline: str
     why: str
@@ -30,12 +30,17 @@ class FriendlyCopy(TypedDict):
     area: str
 
 
+class BilingualFriendly(TypedDict):
+    es: FriendlyCopy
+    en: FriendlyCopy
+
+
 class LlmClassification(TypedDict):
     finding_id: str
     native_code: str
     resource_id: str
     extracted_variables: ExtractedVariables
-    friendly: NotRequired[FriendlyCopy]
+    friendly: NotRequired[BilingualFriendly]
 
 
 class ComplianceMap(TypedDict):
@@ -98,5 +103,5 @@ class EnrichedFinding:
     source_engine: str
     raw_title: str = ""
     check_id: str = ""
-    friendly: FriendlyCopy | None = None
+    friendly: BilingualFriendly | None = None
     extra: dict[str, Any] = field(default_factory=dict)

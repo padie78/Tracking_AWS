@@ -250,7 +250,7 @@ resource "aws_cloudwatch_event_target" "pricing_cache_weekly" {
 }
 
 resource "aws_lambda_permission" "pricing_cache_weekly" {
-  statement_id  = "AllowEventBridgePricingWeekly"
+  statement_id  = "AllowEventBridgePricingCacheWeekly"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.business_etl_aggregator.function_name
   principal     = "events.amazonaws.com"

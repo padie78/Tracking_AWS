@@ -3,12 +3,14 @@ import {
   OnInit,
   ViewEncapsulation,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 import { DropdownModule } from 'primeng/dropdown';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuthService } from '../../core/services/auth.service';
@@ -28,6 +30,7 @@ import {
   ToastStackComponent,
 } from '../../ui/notifications/notification-center.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
+import { AuditProgressComponent } from '../../ui/audit/audit-progress.component';
 
 type AccountOption = {
   accountId: string;
@@ -44,11 +47,13 @@ type AccountOption = {
     RouterLinkActive,
     FormsModule,
     ButtonModule,
+    DialogModule,
     DropdownModule,
     SelectButtonModule,
     NotificationCenterComponent,
     ToastStackComponent,
     StatusBadgeComponent,
+    AuditProgressComponent,
   ],
   template: `
     <div class="ta-shell" [attr.data-role]="auth.userRole()" [class.ta-shell--nav-open]="navOpen()">
@@ -109,13 +114,19 @@ type AccountOption = {
             <span class="ta-meta">{{ audit.connectionState() }}</span>
           </div>
           @if (audit.isRunning()) {
-            <a class="ta-live-pill" routerLink="/tabs/audits" (click)="closeNav()">
+            <button
+              type="button"
+              class="ta-live-pill"
+              (click)="openScanModal()"
+            >
               <span class="ta-live-pill__pulse"></span>
               {{ audit.displayStatus() }} · {{ audit.progressPercent() }}%
-            </a>
+            </button>
           } @else {
             @if (audit.activeAudit(); as a) {
-              <ta-status-badge [status]="a.status" />
+              <a class="ta-shell__status-link" routerLink="/tabs/audits" (click)="closeNav()">
+                <ta-status-badge [status]="a.status" />
+              </a>
             }
           }
           <ta-notification-center />
@@ -171,6 +182,50 @@ type AccountOption = {
         </main>
       </div>
 
+      <p-dialog
+        [header]="locale.isEn() ? 'Scan in progress' : 'Revisión en curso'"
+        [visible]="scanModalOpen()"
+        (visibleChange)="scanModalOpen.set($event)"
+        [modal]="true"
+        [draggable]="false"
+        [resizable]="false"
+        [closable]="true"
+        [dismissableMask]="true"
+        [closeOnEscape]="true"
+        appendTo="body"
+        styleClass="ta-scan-dialog"
+        [style]="{ width: 'min(560px, 94vw)' }"
+      >
+        <ta-audit-progress
+          [stages]="audit.stages()"
+          [percent]="audit.progressPercent()"
+          [live]="true"
+          [title]="
+            locale.isEn()
+              ? 'Checking your AWS account…'
+              : 'Revisando tu cuenta AWS…'
+          "
+          [eyebrow]="audit.displayStatus()"
+        />
+        <div class="ta-scan-dialog__footer">
+          <a
+            class="ta-link"
+            routerLink="/tabs/audits"
+            (click)="scanModalOpen.set(false)"
+          >
+            {{ locale.isEn() ? 'Open history' : 'Ver historial' }}
+          </a>
+          <button
+            pButton
+            type="button"
+            class="p-button-outlined p-button-sm"
+            [label]="locale.isEn() ? 'Continue browsing' : 'Seguir navegando'"
+            icon="pi pi-times"
+            (click)="scanModalOpen.set(false)"
+          ></button>
+        </div>
+      </p-dialog>
+
       <ta-toast-stack />
     </div>
   `,
@@ -185,6 +240,9 @@ export class ShellPageComponent implements OnInit {
   readonly roleLabel = roleLabel;
   readonly iconClass = NAV_ICON_CLASS;
   readonly navOpen = signal(false);
+  readonly scanModalOpen = signal(false);
+
+  private wasRunning = false;
 
   readonly navItems = computed(() => navItemsForRole(this.auth.userRole()));
   readonly navFocus = computed(() => navFocusForRole(this.auth.userRole()));
@@ -199,9 +257,26 @@ export class ShellPageComponent implements OnInit {
     })),
   );
 
+  constructor() {
+    effect(() => {
+      const running = this.audit.isRunning();
+      if (running && !this.wasRunning) {
+        this.scanModalOpen.set(true);
+      }
+      if (!running) {
+        this.scanModalOpen.set(false);
+      }
+      this.wasRunning = running;
+    });
+  }
+
   ngOnInit(): void {
     void this.audit.bootstrap();
     void this.loadAccounts();
+  }
+
+  openScanModal(): void {
+    this.scanModalOpen.set(true);
   }
 
   toggleNav(): void {

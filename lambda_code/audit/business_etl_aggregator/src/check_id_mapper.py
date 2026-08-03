@@ -53,6 +53,14 @@ _CHECK_MAP: list[tuple[re.Pattern[str], str, str]] = [
         "api_gateway_no_auth",
     ),
     (
+        re.compile(
+            r"no_secrets_in_code|secrets_in_code|hardcoded.?secret|secret.*in.*code",
+            re.I,
+        ),
+        "SEC_SERVERLESS_RISK",
+        "lambda_function_no_secrets_in_code",
+    ),
+    (
         re.compile(r"secrets?_manager|secret.*encrypt|kms.*secret", re.I),
         "SEC_SERVERLESS_RISK",
         "secrets_manager_secret_unencrypted",

@@ -42,6 +42,20 @@ export type FriendlyFinding = {
   context: string | null;
   /** Servicio AWS detectado (Lambda, S3, …) */
   serviceLabel: string | null;
+  /** Hallazgo saludable / PASS — no es tarea pendiente */
+  isHealthy: boolean;
+  /** Evidencia del motor (StatusExtended / rationale limpio) */
+  evidence: string | null;
+  /** Remediación técnica útil (si existe) */
+  remediation: string | null;
+  /** checkId legible */
+  checkLabel: string | null;
+  /** Título técnico original */
+  technicalTitle: string | null;
+  /** Deep link a consola AWS cuando se puede construir */
+  consoleUrl: string | null;
+  /** ARN o id completo para copiar */
+  resourceRef: string | null;
 };
 
 type LocalePack = {
@@ -51,8 +65,12 @@ type LocalePack = {
   area: string;
 };
 
+type RuleDomain = 'secops' | 'finops' | 'architecture';
+
 type Rule = {
   test: (hay: string) => boolean;
+  /** Si falta, aplica a todos los dominios */
+  domains?: RuleDomain[];
   es: LocalePack;
   en: LocalePack;
 };
@@ -68,6 +86,44 @@ const DOMAIN: Record<UiLang, Record<string, string>> = {
 };
 
 const RULES: Rule[] = [
+  {
+    test: (h) =>
+      /no secrets? found|secrets? (?:were )?not found|without secrets? in/.test(h),
+    es: {
+      headline: 'Control OK: no hay secretos en el código de la Lambda',
+      why: 'El escaneo no encontró claves, tokens ni passwords hardcodeados en esta función. Es una buena señal de higiene, no un incidente.',
+      action:
+        'No hay nada que corregir acá. Mantené el escaneo en CI/CD para que no se cuelen secretos en futuros deploys.',
+      area: 'Aplicaciones',
+    },
+    en: {
+      headline: 'Control OK: no secrets in the Lambda code',
+      why: 'The scan did not find hardcoded keys, tokens, or passwords in this function. That is good hygiene, not an incident.',
+      action:
+        'Nothing to fix here. Keep scanning in CI/CD so secrets do not sneak into future deploys.',
+      area: 'Applications',
+    },
+  },
+  {
+    test: (h) =>
+      /secret.*(?:in|inside|hardcoded).*code|hardcoded.?secret|secrets?_found|lambda.*secret|secret.*lambda|aws.?access.?key|akia[0-9a-z]{16}/i.test(
+        h,
+      ) && !/no secrets? found|secrets? (?:were )?not found/.test(h),
+    es: {
+      headline: 'Posibles secretos hardcodeados en el código',
+      why: 'Claves o tokens en el código pueden filtrarse por repos, logs, backups o el historial de versiones. Un atacante podría usarlos para entrar a tu cuenta.',
+      action:
+        'Mové los secretos a Secrets Manager o SSM Parameter Store, rotá lo que ya estuvo en el código y redesplegá la función.',
+      area: 'Aplicaciones',
+    },
+    en: {
+      headline: 'Possible hardcoded secrets in the code',
+      why: 'Keys or tokens in code can leak via repos, logs, backups, or version history. An attacker could use them to enter your account.',
+      action:
+        'Move secrets to Secrets Manager or SSM Parameter Store, rotate anything that was in code, and redeploy the function.',
+      area: 'Applications',
+    },
+  },
   {
     test: (h) => /mfa|multi.factor|2fa/.test(h),
     es: {
@@ -315,7 +371,12 @@ const RULES: Rule[] = [
     },
   },
   {
-    test: (h) => /iam|permission|policy|role|privilege/.test(h),
+    domains: ['secops', 'architecture'],
+    // Sin "role"/"policy" sueltos: aparecen en ARNs y hallazgos de costo
+    test: (h) =>
+      /\biam\b|permission|privilege|least.?privilege|overly.?permissive|admin.?access|wildcard.*action|\*:\*/.test(
+        h,
+      ),
     es: {
       headline: 'Hay permisos más amplios de lo recomendable',
       why: 'Si una cuenta o rol se compromete, el daño puede extenderse a toda la nube.',
@@ -330,21 +391,59 @@ const RULES: Rule[] = [
     },
   },
   {
-    test: (h) => /cloudtrail|logging|log.group|retention|audit.log/.test(h),
+    domains: ['secops', 'architecture'],
+    test: (h) => /cloudtrail|audit.log|logging.*disabled|no.*cloudtrail/.test(h),
     es: {
       headline: 'El registro de actividad no está bien configurado',
       why: 'Sin buenos logs cuesta investigar un incidente o demostrar cumplimiento.',
-      action: 'Activá/ajustá el registro y definí una retención razonable (p. ej. 30–90 días).',
+      action: 'Activá/ajustá CloudTrail y definí una retención razonable.',
       area: 'Cumplimiento',
     },
     en: {
       headline: 'Activity logging is not set up well',
       why: 'Without good logs it is hard to investigate incidents or prove compliance.',
-      action: 'Enable/tune logging and set sensible retention (e.g. 30–90 days).',
+      action: 'Enable/tune CloudTrail and set sensible retention.',
       area: 'Compliance',
     },
   },
   {
+    domains: ['finops'],
+    test: (h) =>
+      /log.?group|retention|never.?expire|cloudwatch.*log|reten/.test(h),
+    es: {
+      headline: 'Los logs se guardan sin límite de tiempo',
+      why: 'Cada GB almacenado suma en la factura mes a mes.',
+      action: 'Definí retención (p. ej. 30–90 días) en el grupo de CloudWatch Logs.',
+      area: 'Costos',
+    },
+    en: {
+      headline: 'Logs are kept with no time limit',
+      why: 'Every stored GB adds to the bill every month.',
+      action: 'Set retention (e.g. 30–90 days) on the CloudWatch log group.',
+      area: 'Cost',
+    },
+  },
+  {
+    domains: ['finops'],
+    test: (h) =>
+      /serverless.?waste|lambda.*idle|idle.*lambda|unused.*lambda|nat.?gateway|orphan|waste|infracost|saving|ahorro|cost.?optim/.test(
+        h,
+      ),
+    es: {
+      headline: 'Hay una oportunidad de bajar el gasto',
+      why: 'El escaneo de costos marcó un recurso ocioso o sobredimensionado que sigue facturando.',
+      action: 'Confirmá si hace falta; si no, apagalo, bajá de tamaño o eliminalo.',
+      area: 'Costos',
+    },
+    en: {
+      headline: 'There is a chance to lower spend',
+      why: 'The cost scan flagged idle or oversized capacity that is still billing.',
+      action: 'Confirm it is needed; otherwise stop, downsize, or delete it.',
+      area: 'Cost',
+    },
+  },
+  {
+    domains: ['secops', 'architecture'],
     test: (h) => /api.gateway|no.auth|without.auth|unauthenticated/.test(h),
     es: {
       headline: 'Una API pública no pide autenticación',
@@ -362,6 +461,7 @@ const RULES: Rule[] = [
 ];
 
 function haystack(f: FindingLike): string {
+  // Sin resourceArn: contiene ":role/" y dispara reglas IAM en hallazgos de costo
   return [
     f.checkId,
     f.title,
@@ -370,11 +470,55 @@ function haystack(f: FindingLike): string {
     f.recommendedAction,
     f.domain,
     f.resourceId,
-    f.resourceArn,
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
+}
+
+const SECOPS_AREAS = new Set([
+  'Accesos',
+  'Red',
+  'Seguridad',
+  'Datos',
+  'Cumplimiento',
+  'Aplicaciones',
+  'Almacenamiento',
+  'Access',
+  'Network',
+  'Security',
+  'Data',
+  'Compliance',
+  'Applications',
+  'Storage',
+]);
+
+function findingDomain(f: FindingLike): RuleDomain {
+  const d = (f.domain || 'secops').toLowerCase();
+  if (d === 'finops' || d === 'architecture') return d;
+  return 'secops';
+}
+
+function matchRule(f: FindingLike, hay: string): Rule | undefined {
+  const domain = findingDomain(f);
+  return RULES.find((r) => {
+    if (r.domains) {
+      if (!r.domains.includes(domain)) return false;
+    } else if (domain === 'finops' && SECOPS_AREAS.has(r.es.area)) {
+      // Reglas de seguridad sin tag no aplican a costos
+      return false;
+    }
+    return r.test(hay);
+  });
+}
+
+function isSecurityCopy(pack: LocalePack): boolean {
+  return (
+    SECOPS_AREAS.has(pack.area) ||
+    /permisos|permission|mfa|security group|puerto|secretos hardcode|expuest/i.test(
+      `${pack.headline} ${pack.area}`,
+    )
+  );
 }
 
 const SERVICE_LABEL: Record<string, { es: string; en: string }> = {
@@ -619,6 +763,172 @@ export function friendlyDomain(
   return DOMAIN[lang][domain.toLowerCase()] ?? domain;
 }
 
+function isHealthyStatusText(text: string | null | undefined): boolean {
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return false;
+  return (
+    /no secrets?\s+found/.test(t) ||
+    /secrets?\s+(?:were\s+)?not\s+found/.test(t) ||
+    /\bis not publicly/.test(t) ||
+    /\bdoes not (?:allow|have|expose)/.test(t) ||
+    /\bis encrypted\b/.test(t) ||
+    /\bmfa is enabled\b/.test(t) ||
+    /\bcomplies with\b/.test(t) ||
+    /\bpassing\b|\bpassed\b|\bstatus:\s*pass\b/.test(t) ||
+    /\bno findings?\b/.test(t) ||
+    /\bis compliant\b/.test(t)
+  );
+}
+
+function isGenericAction(text: string | null | undefined): boolean {
+  const t = (text || '').trim();
+  if (!t) return true;
+  return /revisar remediaci|documentaci[oó]n cis|security hub|cis \/ aws|correcci[oó]n sugerida por tu equipo|fix suggested by your team|aplic[aá] la correcci[oó]n recomendada|apply the recommended fix/i.test(
+    t,
+  );
+}
+
+function cleanEvidence(text: string | null | undefined, max = 280): string | null {
+  const t = (text || '').trim();
+  if (!t) return null;
+  if (/^[a-z0-9_.-]{8,}$/i.test(t) && !/\s/.test(t)) return null;
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+function consoleUrlFor(f: FindingLike, ref: AwsResourceRef): string | null {
+  const region =
+    (f.region && f.region !== 'global' && f.region !== 'unknown' ? f.region : null) ||
+    ref.region;
+  if (!region || !ref.serviceKey || !ref.name || ref.name.includes('sin nombre') || ref.name.includes('unnamed')) {
+    return null;
+  }
+  const name = encodeURIComponent(ref.name);
+  switch (ref.serviceKey) {
+    case 'lambda':
+      return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions/${name}?tab=code`;
+    case 's3':
+      return `https://s3.console.aws.amazon.com/s3/buckets/${name}?region=${region}`;
+    case 'ec2':
+      return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}#SecurityGroups:`;
+    case 'iam':
+      return `https://console.aws.amazon.com/iam/home#/home`;
+    case 'appsync':
+      return `https://${region}.console.aws.amazon.com/appsync/home?region=${region}#/apis`;
+    case 'dynamodb':
+      return `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#tables`;
+    case 'logs':
+      return `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:log-groups`;
+    default:
+      return `https://${region}.console.aws.amazon.com/console/home?region=${region}`;
+  }
+}
+
+function checkLabelOf(f: FindingLike): string | null {
+  const id = (f.checkId || '').trim();
+  if (!id) return null;
+  if (id.length > 90) return `${id.slice(0, 87)}…`;
+  return id;
+}
+
+function softTitle(f: FindingLike, lang: UiLang, fallback: string): string {
+  const title = (f.title || '').trim();
+  if (!title) return fallback;
+  if (/^\d+(\.\d+)+$/.test(title)) return fallback;
+  if (/^[a-z0-9_.-]{12,}$/i.test(title) && !/\s/.test(title)) {
+    // slug técnico → humanizar un poco
+    const pretty = title
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    return pretty.length > 8 ? pretty : fallback;
+  }
+  return softenTechnical(title, fallback, lang);
+}
+
+function buildFallbackPack(f: FindingLike, lang: UiLang): LocalePack {
+  const healthy = isHealthyStatusText(f.rationale) || isHealthyStatusText(f.title);
+  const fallbackHeadline =
+    lang === 'en'
+      ? f.domain === 'finops'
+        ? 'Cost-saving opportunity detected'
+        : healthy
+          ? 'Security control passed'
+          : 'There is a security item to review'
+      : f.domain === 'finops'
+        ? 'Oportunidad de ahorro detectada'
+        : healthy
+          ? 'Control de seguridad verificado (OK)'
+          : 'Hay un tema de seguridad para revisar';
+
+  if (healthy) {
+    return {
+      headline: softTitle(f, lang, fallbackHeadline),
+      why:
+        lang === 'en'
+          ? 'This check confirms the resource meets the expected control. It is information, not an open incident.'
+          : 'Este control confirma que el recurso cumple lo esperado. Es información, no un incidente abierto.',
+      action:
+        lang === 'en'
+          ? 'No fix is required. Keep this control in future scans.'
+          : 'No hace falta corregir nada. Mantené este control en las próximas revisiones.',
+      area: friendlyDomain(f.domain, lang),
+    };
+  }
+
+  const isCost = findingDomain(f) === 'finops';
+  const whyFallback = isCost
+    ? lang === 'en'
+      ? 'Fixing it usually lowers monthly cloud spend.'
+      : 'Corregirlo suele bajar el gasto mensual en la nube.'
+    : lang === 'en'
+      ? 'Review it to reduce risk or unnecessary spend.'
+      : 'Conviene revisarlo para reducir riesgo o gasto innecesario.';
+  const actionFallback = isCost
+    ? lang === 'en'
+      ? 'Review the resource size/usage in the AWS console and apply the cheaper option.'
+      : 'Revisá tamaño/uso del recurso en la consola de AWS y aplicá la opción más barata.'
+    : lang === 'en'
+      ? 'Open the resource in the AWS console, compare with the check below, and apply the fix.'
+      : 'Abrí el recurso en la consola de AWS, contrastá con el detalle del control y aplicá la corrección.';
+
+  let why = softenTechnical(f.rationale, whyFallback, lang);
+  if (isHealthyStatusText(why) || why === (f.rationale || '').trim()) {
+    const titleBit = (f.title || '').trim();
+    if (titleBit && titleBit.length > 12 && lang === 'es') {
+      why = isCost
+        ? `El hallazgo «${titleBit.length > 80 ? titleBit.slice(0, 77) + '…' : titleBit}» indica gasto evitable en este recurso.`
+        : `El control «${titleBit.length > 80 ? titleBit.slice(0, 77) + '…' : titleBit}» marcó un desvío en este recurso. Conviene corregirlo para bajar riesgo o deuda técnica.`;
+    } else if (titleBit && titleBit.length > 12) {
+      why = isCost
+        ? `Finding “${titleBit.length > 80 ? titleBit.slice(0, 77) + '…' : titleBit}” points to avoidable spend on this resource.`
+        : `The check “${titleBit.length > 80 ? titleBit.slice(0, 77) + '…' : titleBit}” flagged a deviation on this resource. Fixing it reduces risk or technical debt.`;
+    }
+  }
+
+  let action = softenTechnical(
+    isGenericAction(f.recommendedAction) ? null : f.recommendedAction,
+    actionFallback,
+    lang,
+  );
+  if (isGenericAction(action)) {
+    action = actionFallback;
+  }
+
+  return {
+    headline: softTitle(
+      f,
+      lang,
+      isCost
+        ? lang === 'en'
+          ? 'Cost-saving opportunity detected'
+          : 'Oportunidad de ahorro detectada'
+        : fallbackHeadline,
+    ),
+    why,
+    action,
+    area: friendlyDomain(f.domain, lang),
+  };
+}
+
 function finalize(
   f: FindingLike,
   lang: UiLang,
@@ -626,6 +936,17 @@ function finalize(
 ): FriendlyFinding {
   const ref = parseAwsResource(f, lang);
   const guarded = guardPackForService(f, pack, lang, ref.serviceKey);
+  const evidence = cleanEvidence(f.rationale);
+  const remediation = isGenericAction(f.recommendedAction)
+    ? null
+    : cleanEvidence(f.recommendedAction, 320);
+  const healthy =
+    isHealthyStatusText(f.rationale) ||
+    isHealthyStatusText(f.title) ||
+    /control ok|control passed|no hay secretos|no secrets in/i.test(guarded.headline);
+
+  const resourceRef = (f.resourceArn || f.resourceId || '').trim() || null;
+
   return {
     headline: guarded.headline,
     whyItMatters: guarded.why,
@@ -635,45 +956,55 @@ function finalize(
     areaLabel: buildAreaLabel(guarded.area || friendlyDomain(f.domain, lang), ref.serviceLabel),
     context: buildContext(f, guarded.headline),
     serviceLabel: ref.serviceLabel,
+    isHealthy: healthy,
+    evidence,
+    remediation,
+    checkLabel: checkLabelOf(f),
+    technicalTitle: (f.title || '').trim() || null,
+    consoleUrl: consoleUrlFor(f, ref),
+    resourceRef,
   };
 }
 
 export function humanizeFinding(f: FindingLike, lang: UiLang = 'es'): FriendlyFinding {
+  const hay = haystack(f);
+  const domain = findingDomain(f);
+
+  // Controles PASS / saludables: regla dedicada antes que persisted basura
+  if (isHealthyStatusText(f.rationale) || isHealthyStatusText(f.title)) {
+    const healthyRule = matchRule(f, hay);
+    if (healthyRule && /control ok|no secrets|no hay secretos/i.test(healthyRule.es.headline)) {
+      return finalize(f, lang, healthyRule[lang]);
+    }
+    return finalize(f, lang, buildFallbackPack(f, lang));
+  }
+
+  const matched = matchRule(f, hay);
+
   const persisted = pickPersisted(f, lang);
   if (persisted) {
+    // ETL/persisted de seguridad no debe contaminar Costos
+    if (domain === 'finops' && isSecurityCopy(persisted)) {
+      if (matched) return finalize(f, lang, matched[lang]);
+      return finalize(f, lang, buildFallbackPack(f, lang));
+    }
+    if (isHealthyStatusText(persisted.why) || isGenericAction(persisted.action)) {
+      if (matched) return finalize(f, lang, matched[lang]);
+      return finalize(f, lang, {
+        headline: persisted.headline,
+        why: buildFallbackPack(f, lang).why,
+        action: isGenericAction(persisted.action)
+          ? buildFallbackPack(f, lang).action
+          : persisted.action,
+        area: domain === 'finops' ? (lang === 'en' ? 'Cost' : 'Costos') : persisted.area,
+      });
+    }
     return finalize(f, lang, persisted);
   }
 
-  const matched = RULES.find((r) => r.test(haystack(f)));
   if (matched) {
     return finalize(f, lang, matched[lang]);
   }
 
-  const fallbackHeadline =
-    lang === 'en'
-      ? f.domain === 'finops'
-        ? 'Cost-saving opportunity detected'
-        : 'There is a security item to review'
-      : f.domain === 'finops'
-        ? 'Oportunidad de ahorro detectada'
-        : 'Hay un tema de seguridad para revisar';
-
-  return finalize(f, lang, {
-    headline: softenTechnical(f.title, fallbackHeadline, lang),
-    why: softenTechnical(
-      f.rationale,
-      lang === 'en'
-        ? 'Review it to reduce risk or unnecessary spend.'
-        : 'Conviene revisarlo para reducir riesgo o gasto innecesario.',
-      lang,
-    ),
-    action: softenTechnical(
-      f.recommendedAction,
-      lang === 'en'
-        ? 'Open the resource in the AWS console and apply the fix suggested by your team.'
-        : 'Abrí el detalle del recurso en la consola de AWS y aplicá la corrección sugerida por tu equipo.',
-      lang,
-    ),
-    area: friendlyDomain(f.domain, lang),
-  });
+  return finalize(f, lang, buildFallbackPack(f, lang));
 }

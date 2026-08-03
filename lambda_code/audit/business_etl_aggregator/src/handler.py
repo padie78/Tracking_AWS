@@ -1,18 +1,20 @@
 """
 AWS Lambda entrypoint — Business ETL Aggregator (Python 3.11+).
 
-Procesa los 4 artefactos del scanner (CloudQuery, Prowler, Trivy, Infracost):
-  filtro → mapa check_id → Bedrock subset → Pricing → Dynamo FINDING#etl#
+Modos:
+  - default / audit pipeline: filtro → mapa → Bedrock → Pricing → Dynamo
+  - pricing_refresh: job semanal EventBridge (caché SYSTEM#AWS_PRICING)
 
 Env:
   DYNAMODB_TABLE_NAME / TABLE_NAME / CORE_TABLE_NAME
   PROWLER_FINDINGS_BUCKET
   BEDROCK_MODEL_ID
-  ETL_SKIP_BEDROCK=true     → nunca Bedrock
-  ETL_BEDROCK_MAX=25        → tope de llamadas Bedrock (por check_id único)
+  ETL_SKIP_BEDROCK=true
+  ETL_BEDROCK_MAX=40
   ETL_BEDROCK_SEVERITIES=CRITICAL,HIGH,MEDIUM
   ETL_DRY_RUN=true
   FRIENDLY_COPY_TTL_DAYS=90
+  PRICING_CACHE_TTL_DAYS=14
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import logging
 from typing import Any
 
 from orchestrator import run_pipeline
+from pricing_refresh import refresh_pricing_cache
 
 logger = logging.getLogger()
 if not logger.handlers:
@@ -28,7 +31,35 @@ if not logger.handlers:
 logger.setLevel(logging.INFO)
 
 
+def _is_pricing_refresh(event: dict[str, Any]) -> bool:
+    if str(event.get("mode") or "").lower() in {"pricing_refresh", "refresh_pricing"}:
+        return True
+    # EventBridge scheduled rule detail-type / source
+    if event.get("source") == "aws.events" and "pricing" in str(
+        event.get("detail-type") or event.get("resources") or ""
+    ).lower():
+        return True
+    # Payload fijo del schedule terraform
+    if event.get("job") == "pricing_cache_weekly_refresh":
+        return True
+    return False
+
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    event = event or {}
+
+    if _is_pricing_refresh(event):
+        logger.info("pricing_refresh_start")
+        result = refresh_pricing_cache()
+        logger.info(
+            "pricing_refresh_done",
+            extra={
+                k: result.get(k)
+                for k in ("seededCount", "refreshedCount", "changedCount")
+            },
+        )
+        return result
+
     logger.info(
         "business_etl_start",
         extra={

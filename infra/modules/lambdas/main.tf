@@ -227,8 +227,34 @@ resource "aws_lambda_function" "business_etl_aggregator" {
       ETL_BEDROCK_MAX         = "40"
       ETL_BEDROCK_SEVERITIES  = "CRITICAL,HIGH,MEDIUM"
       FRIENDLY_COPY_TTL_DAYS  = "90"
+      PRICING_CACHE_TTL_DAYS  = "14"
     })
   }
+}
+
+# Refresh semanal del catálogo de precios (Dynamo SYSTEM#AWS_PRICING)
+resource "aws_cloudwatch_event_rule" "pricing_cache_weekly" {
+  name                = "${var.name_prefix}-pricing-cache-weekly"
+  description         = "Weekly AWS Price List refresh into Dynamo cache"
+  schedule_expression = "cron(0 6 ? * MON *)"
+}
+
+resource "aws_cloudwatch_event_target" "pricing_cache_weekly" {
+  rule      = aws_cloudwatch_event_rule.pricing_cache_weekly.name
+  target_id = "business-etl-pricing-refresh"
+  arn       = aws_lambda_function.business_etl_aggregator.arn
+  input = jsonencode({
+    job  = "pricing_cache_weekly_refresh"
+    mode = "pricing_refresh"
+  })
+}
+
+resource "aws_lambda_permission" "pricing_cache_weekly" {
+  statement_id  = "AllowEventBridgePricingWeekly"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.business_etl_aggregator.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.pricing_cache_weekly.arn
 }
 
 data "aws_region" "current" {}

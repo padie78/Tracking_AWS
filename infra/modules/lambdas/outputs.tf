@@ -62,6 +62,10 @@ output "business_etl_aggregator_name" {
   value = aws_lambda_function.business_etl_aggregator.function_name
 }
 
+output "pricing_cache_weekly_rule_name" {
+  value = aws_cloudwatch_event_rule.pricing_cache_weekly.name
+}
+
 output "fail_audit_arn" {
   value = aws_lambda_function.fail_audit.arn
 }

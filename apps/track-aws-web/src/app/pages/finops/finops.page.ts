@@ -109,11 +109,10 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
               <span class="ta-sev" [attr.data-sev]="f.severity">{{ friendly(f).urgencyLabel }}</span>
               <div>
                 <strong>{{ friendly(f).headline }}</strong>
+                <div class="ta-meta">{{ friendly(f).areaLabel }}</div>
                 <div class="ta-meta">
-                  {{ friendly(f).areaLabel }}
-                  @if (friendly(f).where) {
-                    · {{ friendly(f).where }}
-                  }
+                  <strong>{{ locale.resourceLabel() }}:</strong>
+                  {{ friendly(f).where || '—' }}
                   · ~USD {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }}/mes
                 </div>
                 @if (friendly(f).context) {

@@ -119,9 +119,10 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
                 <strong>{{ friendly(f).headline }}</strong>
                 <div class="ta-meta">
                   {{ friendly(f).areaLabel }}
-                  @if (friendly(f).where) {
-                    · {{ friendly(f).where }}
-                  }
+                </div>
+                <div class="ta-meta">
+                  <strong>{{ locale.resourceLabel() }}:</strong>
+                  {{ friendly(f).where || '—' }}
                 </div>
                 @if (friendly(f).context) {
                   <div class="ta-meta ta-meta--muted">{{ friendly(f).context }}</div>

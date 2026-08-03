@@ -48,4 +48,8 @@ export class UiLocaleService {
   unnamedResource(): string {
     return this._lang() === 'en' ? 'unnamed resource' : 'recurso sin nombre';
   }
+
+  resourceLabel(): string {
+    return this._lang() === 'en' ? 'Resource' : 'Recurso';
+  }
 }

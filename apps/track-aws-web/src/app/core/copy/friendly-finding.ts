@@ -521,9 +521,22 @@ function buildAreaLabel(
 }
 
 function buildContext(f: FindingLike, headline: string): string | null {
+  const rationale = (f.rationale || '').trim();
   const title = (f.title || '').trim();
+
+  // Preferir rationale técnico (StatusExtended) cuando aporta detalle del recurso
+  const rationaleOk =
+    rationale &&
+    rationale.length > 20 &&
+    !/revisar remediaci|security hub/i.test(rationale) &&
+    rationale.toLowerCase() !== headline.toLowerCase();
+
+  if (rationaleOk) {
+    return rationale.length > 180 ? `${rationale.slice(0, 177)}…` : rationale;
+  }
+
   if (!title) return null;
-  // Evitar check_ids crudos
+  if (/^\d+(\.\d+)+$/.test(title)) return null;
   if (/^[a-z0-9_.-]{12,}$/i.test(title) && !/\s/.test(title)) {
     const check = (f.checkId || '').trim();
     if (check && check.length < 80) return check;
@@ -531,7 +544,6 @@ function buildContext(f: FindingLike, headline: string): string | null {
   }
   const short = title.length > 140 ? `${title.slice(0, 137)}…` : title;
   if (short.toLowerCase() === headline.toLowerCase()) return null;
-  // Si el título es casi el headline friendly, no aporta
   if (headline.length > 20 && short.toLowerCase().includes(headline.toLowerCase().slice(0, 28))) {
     return null;
   }

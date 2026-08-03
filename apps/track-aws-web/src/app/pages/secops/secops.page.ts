@@ -123,6 +123,9 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
                     · {{ friendly(f).where }}
                   }
                 </div>
+                @if (friendly(f).context) {
+                  <div class="ta-meta ta-meta--muted">{{ friendly(f).context }}</div>
+                }
                 <div class="ta-meta"><strong>{{ locale.whyLabel() }}:</strong> {{ friendly(f).whyItMatters }}</div>
                 <div class="ta-meta"><strong>{{ locale.actionLabel() }}:</strong> {{ friendly(f).whatToDo }}</div>
               </div>

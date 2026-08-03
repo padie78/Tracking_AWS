@@ -116,6 +116,9 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
                   }
                   · ~USD {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }}/mes
                 </div>
+                @if (friendly(f).context) {
+                  <div class="ta-meta ta-meta--muted">{{ friendly(f).context }}</div>
+                }
                 <div class="ta-meta"><strong>{{ locale.whyLabel() }}:</strong> {{ friendly(f).whyItMatters }}</div>
                 <div class="ta-meta"><strong>{{ locale.actionLabel() }}:</strong> {{ friendly(f).whatToDo }}</div>
               </div>

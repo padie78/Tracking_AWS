@@ -45,6 +45,14 @@ _CHECK_MAP: list[tuple[re.Pattern[str], str, str]] = [
         "api_gateway_no_auth",
     ),
     (
+        re.compile(
+            r"lambda.*public|function_url|lambda_function_not_publicly|awslambda.*invok",
+            re.I,
+        ),
+        "SEC_SERVERLESS_RISK",
+        "api_gateway_no_auth",
+    ),
+    (
         re.compile(r"secrets?_manager|secret.*encrypt|kms.*secret", re.I),
         "SEC_SERVERLESS_RISK",
         "secrets_manager_secret_unencrypted",

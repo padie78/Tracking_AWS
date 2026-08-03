@@ -14,6 +14,7 @@ export type FindingLike = {
   domain?: string | null;
   severity?: string | null;
   resourceId?: string | null;
+  resourceArn?: string | null;
   region?: string | null;
   estimatedMonthlySavingsUsd?: number | null;
   friendlyHeadline?: string | null;
@@ -37,6 +38,10 @@ export type FriendlyFinding = {
   where: string;
   urgencyLabel: string;
   areaLabel: string;
+  /** Título técnico original acortado (contexto) */
+  context: string | null;
+  /** Servicio AWS detectado (Lambda, S3, …) */
+  serviceLabel: string | null;
 };
 
 type LocalePack = {
@@ -139,18 +144,54 @@ const RULES: Rule[] = [
     },
   },
   {
-    test: (h) => /0\.0\.0\.0\/0|open.to.the.world|unrestricted|publicly.accessible/.test(h),
+    test: (h) =>
+      /lambda.*public|publicly.?accessible.*lambda|lambda.*function.?url|function_url|awslambda.*invok|lambda_function_not_publicly/.test(
+        h,
+      ),
     es: {
-      headline: 'Hay un servicio demasiado expuesto a Internet',
-      why: 'Cuanto más abierto está, más fácil es que lo encuentren los bots.',
-      action: 'Revisá el grupo de seguridad y limitá quién puede conectarse.',
+      headline: 'Una función Lambda es invocable desde Internet',
+      why: 'Cualquiera puede llamarla: abuso, fuga de datos o factura por invocaciones.',
+      action:
+        'Revisá la política de la función o la Function URL y restringí quién puede invocarla (IAM / auth).',
+      area: 'Aplicaciones',
+    },
+    en: {
+      headline: 'A Lambda function is invokable from the internet',
+      why: 'Anyone can call it: abuse, data leaks, or bill shock from invocations.',
+      action:
+        'Review the function policy or Function URL and restrict who can invoke it (IAM / auth).',
+      area: 'Applications',
+    },
+  },
+  {
+    test: (h) =>
+      /security.?group|ec2.*sg|ingress.*0\.0\.0\.0|0\.0\.0\.0\/0.*(tcp|udp|port)|sg-/.test(h),
+    es: {
+      headline: 'Hay un puerto de red abierto a todo Internet',
+      why: 'Los bots escanean rangos 0.0.0.0/0 y atacan lo primero que encuentran.',
+      action: 'En el security group, limitá el CIDR a IPs conocidas o a una VPN.',
       area: 'Red',
     },
     en: {
-      headline: 'A service is too exposed to the internet',
-      why: 'The more open it is, the easier it is for bots to find it.',
-      action: 'Review the security group and limit who can connect.',
+      headline: 'A network port is open to the whole internet',
+      why: 'Bots scan 0.0.0.0/0 ranges and attack whatever answers.',
+      action: 'In the security group, limit the CIDR to known IPs or a VPN.',
       area: 'Network',
+    },
+  },
+  {
+    test: (h) => /0\.0\.0\.0\/0|open.to.the.world|unrestricted|publicly.accessible/.test(h),
+    es: {
+      headline: 'Hay un recurso demasiado expuesto a Internet',
+      why: 'Cuanto más abierto está, más fácil es que lo encuentren los bots.',
+      action: 'Revisá quién puede acceder (política IAM, URL pública o red) y limitá el alcance.',
+      area: 'Seguridad',
+    },
+    en: {
+      headline: 'A resource is too exposed to the internet',
+      why: 'The more open it is, the easier it is for bots to find it.',
+      action: 'Review who can access it (IAM policy, public URL, or network) and narrow the scope.',
+      area: 'Security',
     },
   },
   {
@@ -321,24 +362,180 @@ const RULES: Rule[] = [
 ];
 
 function haystack(f: FindingLike): string {
-  return [f.checkId, f.title, f.category, f.rationale, f.recommendedAction, f.domain]
+  return [
+    f.checkId,
+    f.title,
+    f.category,
+    f.rationale,
+    f.recommendedAction,
+    f.domain,
+    f.resourceId,
+    f.resourceArn,
+  ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 }
 
-function shortResource(
-  resourceId: string | null | undefined,
-  lang: UiLang,
-): string {
-  if (!resourceId) return lang === 'en' ? 'unnamed resource' : 'recurso sin nombre';
-  const s = resourceId.trim();
-  if (s.length <= 48) return s;
-  if (s.includes('/')) {
-    const parts = s.split('/');
-    return parts[parts.length - 1] || s.slice(0, 48);
+const SERVICE_LABEL: Record<string, { es: string; en: string }> = {
+  lambda: { es: 'Lambda', en: 'Lambda' },
+  s3: { es: 'S3', en: 'S3' },
+  ec2: { es: 'EC2', en: 'EC2' },
+  rds: { es: 'RDS', en: 'RDS' },
+  iam: { es: 'IAM', en: 'IAM' },
+  apigateway: { es: 'API Gateway', en: 'API Gateway' },
+  appsync: { es: 'AppSync', en: 'AppSync' },
+  dynamodb: { es: 'DynamoDB', en: 'DynamoDB' },
+  elasticloadbalancing: { es: 'Load Balancer', en: 'Load Balancer' },
+  elbv2: { es: 'Load Balancer', en: 'Load Balancer' },
+  cloudfront: { es: 'CloudFront', en: 'CloudFront' },
+  ecs: { es: 'ECS', en: 'ECS' },
+  eks: { es: 'EKS', en: 'EKS' },
+  kms: { es: 'KMS', en: 'KMS' },
+  secretsmanager: { es: 'Secrets Manager', en: 'Secrets Manager' },
+  logs: { es: 'CloudWatch Logs', en: 'CloudWatch Logs' },
+  sqs: { es: 'SQS', en: 'SQS' },
+  sns: { es: 'SNS', en: 'SNS' },
+};
+
+type AwsResourceRef = {
+  serviceKey: string | null;
+  serviceLabel: string | null;
+  name: string;
+  region: string | null;
+};
+
+function parseAwsResource(f: FindingLike, lang: UiLang): AwsResourceRef {
+  const raw = (f.resourceArn || f.resourceId || '').trim();
+  const unnamed = lang === 'en' ? 'unnamed resource' : 'recurso sin nombre';
+  if (!raw) {
+    return { serviceKey: null, serviceLabel: null, name: unnamed, region: null };
   }
-  return `${s.slice(0, 20)}…${s.slice(-12)}`;
+
+  // arn:aws:lambda:eu-central-1:123456789012:function:my-fn
+  // arn:aws:s3:::bucket-name
+  const arn = /^arn:aws(?:-cn|-us-gov)?:([^:]+):([^:]*):([^:]*):(.+)$/i.exec(raw);
+  if (arn) {
+    const serviceKey = arn[1].toLowerCase();
+    const region = arn[2] || null;
+    let rest = arn[4];
+    // function:name or function:name:alias
+    if (serviceKey === 'lambda' && rest.startsWith('function:')) {
+      rest = rest.slice('function:'.length).split(':')[0] || rest;
+    } else if (rest.includes('/')) {
+      rest = rest.split('/').pop() || rest;
+    } else if (rest.includes(':')) {
+      const parts = rest.split(':');
+      rest = parts[parts.length - 1] || rest;
+    }
+    const labels = SERVICE_LABEL[serviceKey];
+    return {
+      serviceKey,
+      serviceLabel: labels ? labels[lang] : serviceKey.toUpperCase(),
+      name: rest || unnamed,
+      region: region || null,
+    };
+  }
+
+  // Infer service from checkId / title when ARN missing
+  const hay = haystack(f);
+  let serviceKey: string | null = null;
+  if (/lambda|awslambda/.test(hay)) serviceKey = 'lambda';
+  else if (/\bs3\b|bucket/.test(hay)) serviceKey = 's3';
+  else if (/security.?group|ec2/.test(hay)) serviceKey = 'ec2';
+  else if (/appsync|graphql/.test(hay)) serviceKey = 'appsync';
+  else if (/api.?gateway|apigateway/.test(hay)) serviceKey = 'apigateway';
+
+  let name = raw;
+  if (name.length > 56) {
+    name = name.includes('/')
+      ? name.split('/').pop() || name.slice(0, 56)
+      : `${name.slice(0, 22)}…${name.slice(-16)}`;
+  }
+  const labels = serviceKey ? SERVICE_LABEL[serviceKey] : null;
+  return {
+    serviceKey,
+    serviceLabel: labels ? labels[lang] : null,
+    name,
+    region: null,
+  };
+}
+
+const LAMBDA_PUBLIC: Record<UiLang, LocalePack> = {
+  es: {
+    headline: 'Una función Lambda es invocable desde Internet',
+    why: 'Cualquiera puede llamarla: abuso, fuga de datos o factura por invocaciones.',
+    action:
+      'Revisá la política de la función o la Function URL y restringí quién puede invocarla (IAM / auth).',
+    area: 'Aplicaciones',
+  },
+  en: {
+    headline: 'A Lambda function is invokable from the internet',
+    why: 'Anyone can call it: abuse, data leaks, or bill shock from invocations.',
+    action:
+      'Review the function policy or Function URL and restrict who can invoke it (IAM / auth).',
+    area: 'Applications',
+  },
+};
+
+function guardPackForService(
+  f: FindingLike,
+  pack: LocalePack,
+  lang: UiLang,
+  serviceKey: string | null,
+): LocalePack {
+  if (serviceKey !== 'lambda') return pack;
+  const wrongNetRemediation =
+    /grupo de seguridad|security group|puerto de red|network port/i.test(
+      `${pack.headline} ${pack.action}`,
+    );
+  const genericExposure =
+    /demasiado expuesto|too exposed|servicio demasiado|service is too exposed|recurso demasiado expuesto/i.test(
+      pack.headline,
+    );
+  if (wrongNetRemediation || genericExposure) {
+    return LAMBDA_PUBLIC[lang];
+  }
+  return pack;
+}
+
+function buildWhere(
+  f: FindingLike,
+  lang: UiLang,
+  ref: AwsResourceRef,
+): string {
+  const region =
+    (f.region && f.region !== 'global' && f.region !== 'unknown' ? f.region : null) ||
+    ref.region;
+  return [ref.name, region].filter(Boolean).join(' · ');
+}
+
+function buildAreaLabel(
+  thematic: string,
+  serviceLabel: string | null,
+): string {
+  if (serviceLabel && !thematic.toLowerCase().includes(serviceLabel.toLowerCase())) {
+    return `${serviceLabel} · ${thematic}`;
+  }
+  return serviceLabel || thematic;
+}
+
+function buildContext(f: FindingLike, headline: string): string | null {
+  const title = (f.title || '').trim();
+  if (!title) return null;
+  // Evitar check_ids crudos
+  if (/^[a-z0-9_.-]{12,}$/i.test(title) && !/\s/.test(title)) {
+    const check = (f.checkId || '').trim();
+    if (check && check.length < 80) return check;
+    return null;
+  }
+  const short = title.length > 140 ? `${title.slice(0, 137)}…` : title;
+  if (short.toLowerCase() === headline.toLowerCase()) return null;
+  // Si el título es casi el headline friendly, no aporta
+  if (headline.length > 20 && short.toLowerCase().includes(headline.toLowerCase().slice(0, 28))) {
+    return null;
+  }
+  return short;
 }
 
 function softenTechnical(
@@ -410,36 +607,34 @@ export function friendlyDomain(
   return DOMAIN[lang][domain.toLowerCase()] ?? domain;
 }
 
-export function humanizeFinding(f: FindingLike, lang: UiLang = 'es'): FriendlyFinding {
-  const urgencyLabel = friendlySeverity(f.severity, lang);
-  const whereParts = [
-    f.region && f.region !== 'global' && f.region !== 'unknown' ? f.region : null,
-    shortResource(f.resourceId, lang),
-  ].filter(Boolean);
+function finalize(
+  f: FindingLike,
+  lang: UiLang,
+  pack: LocalePack,
+): FriendlyFinding {
+  const ref = parseAwsResource(f, lang);
+  const guarded = guardPackForService(f, pack, lang, ref.serviceKey);
+  return {
+    headline: guarded.headline,
+    whyItMatters: guarded.why,
+    whatToDo: guarded.action,
+    where: buildWhere(f, lang, ref),
+    urgencyLabel: friendlySeverity(f.severity, lang),
+    areaLabel: buildAreaLabel(guarded.area || friendlyDomain(f.domain, lang), ref.serviceLabel),
+    context: buildContext(f, guarded.headline),
+    serviceLabel: ref.serviceLabel,
+  };
+}
 
+export function humanizeFinding(f: FindingLike, lang: UiLang = 'es'): FriendlyFinding {
   const persisted = pickPersisted(f, lang);
   if (persisted) {
-    return {
-      headline: persisted.headline,
-      whyItMatters: persisted.why,
-      whatToDo: persisted.action,
-      where: whereParts.join(' · '),
-      urgencyLabel,
-      areaLabel: persisted.area || friendlyDomain(f.domain, lang),
-    };
+    return finalize(f, lang, persisted);
   }
 
   const matched = RULES.find((r) => r.test(haystack(f)));
   if (matched) {
-    const pack = matched[lang];
-    return {
-      headline: pack.headline,
-      whyItMatters: pack.why,
-      whatToDo: pack.action,
-      where: whereParts.join(' · '),
-      urgencyLabel,
-      areaLabel: pack.area,
-    };
+    return finalize(f, lang, matched[lang]);
   }
 
   const fallbackHeadline =
@@ -451,24 +646,22 @@ export function humanizeFinding(f: FindingLike, lang: UiLang = 'es'): FriendlyFi
         ? 'Oportunidad de ahorro detectada'
         : 'Hay un tema de seguridad para revisar';
 
-  return {
+  return finalize(f, lang, {
     headline: softenTechnical(f.title, fallbackHeadline, lang),
-    whyItMatters: softenTechnical(
+    why: softenTechnical(
       f.rationale,
       lang === 'en'
         ? 'Review it to reduce risk or unnecessary spend.'
         : 'Conviene revisarlo para reducir riesgo o gasto innecesario.',
       lang,
     ),
-    whatToDo: softenTechnical(
+    action: softenTechnical(
       f.recommendedAction,
       lang === 'en'
         ? 'Open the resource in the AWS console and apply the fix suggested by your team.'
         : 'Abrí el detalle del recurso en la consola de AWS y aplicá la corrección sugerida por tu equipo.',
       lang,
     ),
-    where: whereParts.join(' · '),
-    urgencyLabel,
-    areaLabel: friendlyDomain(f.domain, lang),
-  };
+    area: friendlyDomain(f.domain, lang),
+  });
 }

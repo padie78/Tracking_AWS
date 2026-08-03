@@ -1116,6 +1116,11 @@ code,
   color: var(--ta-text-muted);
 }
 
+.ta-meta--muted {
+  opacity: 0.78;
+  font-style: italic;
+}
+
 .ta-account-list {
   list-style: none;
   margin: 0;

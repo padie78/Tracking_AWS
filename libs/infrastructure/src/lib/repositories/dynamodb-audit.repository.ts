@@ -229,16 +229,7 @@ export class DynamoDbAuditFindingRepository
         | undefined;
     } while (exclusiveStartKey);
 
-    return items
-      .filter((item) => {
-        const sk = String(item['SK'] ?? '');
-        const entity = String(item['entityType'] ?? '');
-        if (sk.startsWith('FINDING#etl#') || entity === 'AUDIT_FINDING_ETL') {
-          return false;
-        }
-        return true;
-      })
-      .map((item) =>
+    const mapped = items.map((item) =>
       AuditFinding.reconstitute({
         tenantId: String(item['tenantId'] ?? item['TenantId'] ?? ''),
         auditId: String(item['auditId']),
@@ -283,6 +274,34 @@ export class DynamoDbAuditFindingRepository
         createdAtIso: String(item['createdAtIso']),
       }),
     );
+
+    /**
+     * Prefer findings operativos (Aggregate TS).
+     * Si no hay finops operativos (CloudQuery vacío), exponer FINDING#etl#finops
+     * del Business ETL para que Costos no quede en blanco.
+     */
+    const isEtl = (item: Record<string, unknown>): boolean => {
+      const sk = String(item['SK'] ?? '');
+      const entity = String(item['entityType'] ?? '');
+      return sk.startsWith('FINDING#etl#') || entity === 'AUDIT_FINDING_ETL';
+    };
+
+    const opsItems = items
+      .map((item, idx) => ({ item, finding: mapped[idx]! }))
+      .filter(({ item }) => !isEtl(item))
+      .map(({ finding }) => finding);
+
+    const hasOpsFinops = opsItems.some((f) => f.domain === 'finops');
+    if (hasOpsFinops) {
+      return opsItems;
+    }
+
+    const etlFinops = items
+      .map((item, idx) => ({ item, finding: mapped[idx]! }))
+      .filter(({ item, finding }) => isEtl(item) && finding.domain === 'finops')
+      .map(({ finding }) => finding);
+
+    return [...opsItems, ...etlFinops];
   }
 }
 

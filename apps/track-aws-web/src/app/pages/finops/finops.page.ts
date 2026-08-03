@@ -24,6 +24,25 @@ import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 
 type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
 
+function finopsBucket(
+  category: string,
+  title: string,
+  checkId: string | null,
+): Exclude<FinopsTab, 'all'> {
+  const hay = `${category} ${title} ${checkId ?? ''}`.toLowerCase();
+  if (
+    /orphan|unattached|unused|idle|eip|huerf|sin uso|ebs_unused|cost_ebs|log_group|retention|serverless_waste/.test(
+      hay,
+    )
+  ) {
+    return 'orphaned';
+  }
+  if (/moderniz|graviton|t2\b|legacy|generation/.test(hay)) {
+    return 'modernization';
+  }
+  return 'rightsizing';
+}
+
 @Component({
   standalone: true,
   selector: 'app-finops-page',
@@ -150,7 +169,7 @@ export class FinopsPageComponent implements OnInit {
     const t = this.tab();
     const list = this.audit.findings().filter((f) => f.domain === 'finops');
     if (t === 'all') return list;
-    return list.filter((f) => f.category === t);
+    return list.filter((f) => finopsBucket(f.category, f.title, f.checkId) === t);
   });
 
   readonly filteredSavings = computed(() =>

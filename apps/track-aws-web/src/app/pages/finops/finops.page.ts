@@ -38,32 +38,30 @@ type FinopsCard = {
   service: string;
 };
 
-/** Hallazgos de costo: domain finops / categoría COST_* / ahorro > 0. Excluye SecOps claro. */
+/** Hallazgos de costo. domain/COST_* ganan; solo se bloquea SecOps claro (secrets/IAM/SG/CVE). */
 function isFinopsFinding(f: FindingLike): boolean {
   const check = (f.checkId ?? '').toLowerCase();
   const category = (f.category ?? '').toLowerCase();
   const domain = (f.domain ?? '').toLowerCase();
   const title = (f.title ?? '').toLowerCase();
+  const hay = `${check} ${category} ${title}`;
 
-  // Seguridad explícita (Prowler/Trivy/IAM) — nunca en Costos
-  if (
-    /prowler|trivy/.test(check) ||
-    category.startsWith('sec_') ||
-    /awslambda_function_no_secrets|secrets_in_code|hardcoded.?secret|iam_user_mfa|user_mfa|securitygroup|ssh_open|cve-/.test(
-      check,
-    ) ||
-    /no_secrets_in_code|secrets_in_code/.test(title)
-  ) {
-    return false;
+  const isSecurityNoise =
+    /no_secrets_in_code|secrets_in_code|hardcoded.?secret|iam_user_mfa|user_mfa|root_mfa|securitygroup_allow|ingress_from_internet|ssh_open|rdp_open|cve-|trivy|sec_vulnerability|sec_iam|sec_network/.test(
+      hay,
+    ) || category.startsWith('sec_');
+
+  // Señales fuertes de costo (aunque el checkId diga prowler-aws-cloudwatch_…)
+  if (domain === 'finops' || category.startsWith('cost_')) {
+    return !isSecurityNoise;
   }
-  if (domain === 'secops') return false;
 
-  if (domain === 'finops') return true;
-  if (category.startsWith('cost_')) return true;
+  if (domain === 'secops' || isSecurityNoise) return false;
+
   if ((f.estimatedMonthlySavingsUsd ?? 0) > 0) return true;
 
-  return /rightsiz|orphan|unattached|eip|infracost|waste|retention|moderniz|ebs_unused|idle|underutil|sobredimension|graviton|log_group|serverless_waste/.test(
-    `${check} ${category} ${title}`,
+  return /rightsiz|orphan|unattached|eip|infracost|waste|retention|moderniz|ebs_unused|idle|underutil|sobredimension|graviton|log_group|serverless_waste|cost_/.test(
+    hay,
   );
 }
 

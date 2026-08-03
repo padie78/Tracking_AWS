@@ -33,6 +33,7 @@ from friendly_copy import (
     put_cached_friendly,
 )
 from i18n_resolver import build_i18n_bundle, resolve_locale_key, resolve_metadata
+from log_group_size import enrich_rows_with_log_group_sizes
 from models import AggregatorEvent, BilingualFriendly, EnrichedFinding, LlmClassification
 from noise_filter import prefilter_findings
 
@@ -254,12 +255,39 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
     filtered = prefilter_findings(raw_rows)
     filtered.sort(key=severity_rank)
 
+    role_arn = str(event.get("roleArn") or "").strip()
+    external_id = str(event.get("externalId") or "").strip()
+    regions_raw = event.get("regions")
+    default_region = "eu-central-1"
+    if isinstance(regions_raw, list) and regions_raw:
+        first = str(regions_raw[0] or "").strip()
+        if first:
+            default_region = first
+    elif isinstance(regions_raw, str) and regions_raw.strip():
+        default_region = regions_raw.split(",")[0].strip() or default_region
+
+    log_size_stats: dict[str, int] = {}
+    if role_arn:
+        try:
+            log_size_stats = enrich_rows_with_log_group_sizes(
+                filtered,
+                role_arn=role_arn,
+                external_id=external_id,
+                default_region=default_region,
+            )
+        except Exception:
+            logger.exception("log_group_size_enrichment_failed")
+            log_size_stats = {"error": 1}
+    else:
+        logger.info("log_group_size_skipped_no_role")
+
     logger.info(
         "etl_ingest",
         extra={
             "engines": engine_counts,
             "raw": len(raw_rows),
             "filtered": len(filtered),
+            "logSize": log_size_stats,
         },
     )
 
@@ -383,5 +411,6 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
         "CalculatedSavingsNumeric": round(total_savings, 4),
         "dynamoWritten": written,
         "operationalPatched": patched,
+        "logSizeEnrichment": log_size_stats,
         "dryRun": dry_run,
     }

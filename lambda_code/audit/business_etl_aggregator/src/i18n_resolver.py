@@ -69,7 +69,7 @@ def build_i18n_bundle(
     calculated_savings: float,
 ) -> dict[LocaleCode, LocaleEntry]:
     values: dict[str, object] = {
-        "gb": int(variables.get("gb") or 0),
+        "gb": round(float(variables.get("gb") or 0), 3),
         "instance_type": variables.get("instance_type") or "unknown",
         "retention_days": int(variables.get("retention_days") or 0),
         "calculated_savings": f"{calculated_savings:.2f}",

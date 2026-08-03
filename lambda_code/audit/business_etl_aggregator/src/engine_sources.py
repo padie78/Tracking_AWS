@@ -126,7 +126,7 @@ def _infracost_to_rows(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "instance_type": str(
                         line.get("instanceType") or line.get("instance_type") or "unknown"
                     ),
-                    "gb": int(line.get("gb") or line.get("sizeGb") or line.get("size_gb") or 0),
+                    "gb": float(line.get("gb") or line.get("sizeGb") or line.get("size_gb") or 0),
                     "volume_type": str(
                         line.get("volumeType") or line.get("volume_type") or "unknown"
                     ),

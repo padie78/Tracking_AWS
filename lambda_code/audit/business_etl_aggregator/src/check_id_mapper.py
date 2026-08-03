@@ -106,13 +106,38 @@ def _extract_variables(row: dict[str, Any]) -> ExtractedVariables:
                 return str(v).strip()
         return default
 
-    return {
+    def _gb() -> float:
+        for k in ("storedBytes", "stored_bytes", "StoredBytes"):
+            if row.get(k) is not None:
+                try:
+                    return max(0.0, float(row[k]) / float(1024**3))
+                except (TypeError, ValueError):
+                    continue
+        for k in ("gb", "size_gb", "sizeGb", "Size"):
+            if row.get(k) is not None:
+                try:
+                    return max(0.0, float(row[k]))
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+
+    out: ExtractedVariables = {
         "region": _str("region", "Region"),
         "volume_type": _str("volume_type", "volumeType", "volumeApiName"),
-        "gb": _int("gb", "size_gb", "sizeGb", "Size"),
+        "gb": round(_gb(), 6),
         "instance_type": _str("instance_type", "instanceType"),
         "retention_days": _int("retention_days", "retentionInDays", "retention"),
     }
+    for k in ("storedBytes", "stored_bytes", "StoredBytes"):
+        if row.get(k) is not None:
+            try:
+                out["stored_bytes"] = max(0, int(row[k]))
+                break
+            except (TypeError, ValueError):
+                continue
+    if row.get("_log_size_resolved") is True or "stored_bytes" in out:
+        out["log_size_resolved"] = True
+    return out
 
 
 def _resource_id(row: dict[str, Any]) -> str:

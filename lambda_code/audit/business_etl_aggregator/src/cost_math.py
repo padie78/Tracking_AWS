@@ -49,7 +49,7 @@ def compute_calculated_savings_usd(
 
         if finding_id == "COST_GENERIC_ALERT" or key.startswith("COST_"):
             # Válvula: intenta EBS si hay gb; si no, 0
-            if int(variables.get("gb") or 0) > 0:
+            if float(variables.get("gb") or 0) > 0:
                 return _savings_ebs_unused(region, variables)
             if (variables.get("instance_type") or "unknown") != "unknown":
                 return _savings_ec2_oversized(region, variables)
@@ -62,7 +62,7 @@ def compute_calculated_savings_usd(
 
 
 def _savings_ebs_unused(region: str, variables: ExtractedVariables) -> float:
-    gb = max(0, int(variables.get("gb") or 0))
+    gb = max(0.0, float(variables.get("gb") or 0))
     if gb <= 0:
         return 0.0
     volume_type = variables.get("volume_type") or "gp3"
@@ -78,7 +78,7 @@ def _savings_ebs_unused(region: str, variables: ExtractedVariables) -> float:
         },
     )
     # pricePerUnit típico = USD por GB-mes
-    return round(unit * float(gb), 4)
+    return round(unit * gb, 4)
 
 
 def _savings_ec2_oversized(region: str, variables: ExtractedVariables) -> float:
@@ -102,10 +102,22 @@ def _savings_ec2_oversized(region: str, variables: ExtractedVariables) -> float:
     return round(monthly * RIGHTSIZING_RECOVERY_RATIO, 4)
 
 
+def _log_gb(variables: ExtractedVariables) -> float:
+    """GiB reales si hay telemetría; si no, default conservador."""
+    if variables.get("log_size_resolved") is True:
+        if "stored_bytes" in variables and variables["stored_bytes"] is not None:
+            return max(0.0, float(variables["stored_bytes"]) / float(1024**3))
+        return max(0.0, float(variables.get("gb") or 0))
+    if "stored_bytes" in variables and variables["stored_bytes"] is not None:
+        return max(0.0, float(variables["stored_bytes"]) / float(1024**3))
+    gb = float(variables.get("gb") or 0)
+    return gb if gb > 0 else DEFAULT_LOG_GB_MONTH
+
+
 def _savings_log_retention(region: str, variables: ExtractedVariables) -> float:
     """
     Retención infinita: costo de almacenamiento de logs (GB-mes).
-    Sin telemetría de volumen usamos DEFAULT_LOG_GB_MONTH.
+    Preferimos storedBytes (DescribeLogGroups); sin telemetría → DEFAULT_LOG_GB_MONTH.
     retention_days=0 → infinito (ahorro = costo de guardar ese GB-mes de más).
     """
     unit = get_aws_product_price(
@@ -125,5 +137,5 @@ def _savings_log_retention(region: str, variables: ExtractedVariables) -> float:
                 "productFamily": "Storage Snapshot",
             },
         )
-    gb = float(variables.get("gb") or 0) or DEFAULT_LOG_GB_MONTH
+    gb = _log_gb(variables)
     return round(unit * gb, 4)

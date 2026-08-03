@@ -33,7 +33,7 @@ def _default_variables() -> ExtractedVariables:
     return {
         "region": "unknown",
         "volume_type": "unknown",
-        "gb": 0,
+        "gb": 0.0,
         "instance_type": "unknown",
         "retention_days": 0,
     }
@@ -47,20 +47,29 @@ def _normalize_variables(raw: dict[str, Any] | None) -> ExtractedVariables:
     volume_type = str(raw.get("volume_type") or "unknown").strip() or "unknown"
     instance_type = str(raw.get("instance_type") or "unknown").strip() or "unknown"
     try:
-        gb = int(raw.get("gb") or 0)
+        gb = float(raw.get("gb") or 0)
     except (TypeError, ValueError):
-        gb = 0
+        gb = 0.0
     try:
         retention_days = int(raw.get("retention_days") or 0)
     except (TypeError, ValueError):
         retention_days = 0
-    return {
+    out: ExtractedVariables = {
         "region": region,
         "volume_type": volume_type,
-        "gb": max(0, gb),
+        "gb": max(0.0, gb),
         "instance_type": instance_type,
         "retention_days": max(0, retention_days),
     }
+    if raw.get("stored_bytes") is not None:
+        try:
+            out["stored_bytes"] = max(0, int(raw["stored_bytes"]))
+            out["log_size_resolved"] = True
+        except (TypeError, ValueError):
+            pass
+    elif raw.get("log_size_resolved") is True:
+        out["log_size_resolved"] = True
+    return out
 
 
 def _extract_text(converse_response: dict[str, Any]) -> str:

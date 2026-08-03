@@ -16,9 +16,13 @@ LocaleCode = Literal["en", "es"]
 class ExtractedVariables(TypedDict):
     region: str
     volume_type: str
-    gb: int
+    # EBS size (GiB) o tamaño de log group (GiB, puede ser fraccional)
+    gb: float
     instance_type: str
     retention_days: int
+    # Presente cuando DescribeLogGroups / telemetría resolvió el tamaño (incluso 0)
+    stored_bytes: NotRequired[int]
+    log_size_resolved: NotRequired[bool]
 
 
 class FriendlyCopy(TypedDict):
@@ -84,6 +88,10 @@ class AggregatorEvent(TypedDict, total=False):
     secops: dict[str, Any]
     finops: dict[str, Any]
     appsec: dict[str, Any]
+    # Credenciales de la cuenta cliente (SFN → AssumeRole para telemetría)
+    roleArn: str
+    externalId: str
+    regions: list[str]
 
 
 @dataclass(frozen=True, slots=True)

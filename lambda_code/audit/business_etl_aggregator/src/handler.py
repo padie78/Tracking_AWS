@@ -1,24 +1,17 @@
 """
 AWS Lambda entrypoint — Business ETL Aggregator (Python 3.11+).
 
-Event mínimo:
-{
-  "TenantId": "demo",          # o tenantId
-  "AwsAccountId": "123456789012",  # o accountId
-  "auditId": "uuid",
-  "correlationId": "…",
-  "raw_findings": [ … ],       # opcional
-  "secops": { "sourceBucket": "…", "sourceKey": "…" },
-  "finops": { "findings": [ … ] },
-  "appsec": { … }
-}
+Procesa los 4 artefactos del scanner (CloudQuery, Prowler, Trivy, Infracost):
+  filtro → mapa check_id → Bedrock subset → Pricing → Dynamo FINDING#etl#
 
 Env:
-  DYNAMODB_TABLE_NAME   (required para persistir)
-  BEDROCK_MODEL_ID      (default Claude 3 Haiku)
-  BEDROCK_REGION
-  ETL_SKIP_BEDROCK=true → heurística local (dev/tests)
-  ETL_DRY_RUN=true      → no escribe Dynamo
+  DYNAMODB_TABLE_NAME / TABLE_NAME / CORE_TABLE_NAME
+  PROWLER_FINDINGS_BUCKET
+  BEDROCK_MODEL_ID
+  ETL_SKIP_BEDROCK=true     → nunca Bedrock
+  ETL_BEDROCK_MAX=25        → tope de llamadas Bedrock
+  ETL_BEDROCK_SEVERITIES=CRITICAL,HIGH
+  ETL_DRY_RUN=true
 """
 
 from __future__ import annotations
@@ -26,7 +19,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from models import AggregatorEvent
 from orchestrator import run_pipeline
 
 logger = logging.getLogger()
@@ -42,12 +34,27 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "has_tenant": bool(event.get("TenantId") or event.get("tenantId")),
             "has_account": bool(event.get("AwsAccountId") or event.get("accountId")),
             "auditId": event.get("auditId"),
+            "has_finops": isinstance(event.get("finops"), dict),
+            "has_secops": isinstance(event.get("secops"), dict),
+            "has_appsec": isinstance(event.get("appsec"), dict),
         },
     )
     result = run_pipeline(event)  # type: ignore[arg-type]
-    logger.info("business_etl_done", extra={k: result.get(k) for k in ("enrichedCount", "CalculatedSavingsNumeric", "dynamoWritten")})
+    logger.info(
+        "business_etl_done",
+        extra={
+            k: result.get(k)
+            for k in (
+                "engineCounts",
+                "enrichedCount",
+                "mappedWithoutBedrock",
+                "bedrockClassified",
+                "CalculatedSavingsNumeric",
+                "dynamoWritten",
+            )
+        },
+    )
     return result
 
 
-# Alias por si el handler TF apunta a index.handler
 handler = lambda_handler

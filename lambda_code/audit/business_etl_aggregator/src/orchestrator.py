@@ -1,18 +1,26 @@
-"""Orquestador del pipeline ETL (SOLID: aplicación orquesta, adapters aislados)."""
+"""
+Pipeline ETL negocio (4 motores):
+
+  1) Cargar CloudQuery + Prowler + Trivy + Infracost
+  2) Filtro Python (PASS/OK fuera)
+  3) Mapa check_id → native_code / i18n (sin Bedrock)
+  4) Bedrock SOLO subset: desconocidos + CRITICAL/HIGH, tope N
+  5) Pricing API + math CPU → Dynamo FINDING#etl#
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 import os
+import time
 from typing import Any
 
-import boto3
-
 from bedrock_classifier import classify_finding_with_bedrock
+from check_id_mapper import map_row_to_classification, severity_rank
 from cost_math import compute_calculated_savings_usd
 from dictionary_metadata import COST_FINDING_IDS
 from dynamodb_writer import put_audit_summary, put_enriched_findings
+from engine_sources import collect_four_engine_rows, flatten_and_dedupe
 from i18n_resolver import build_i18n_bundle, resolve_locale_key, resolve_metadata
 from models import AggregatorEvent, EnrichedFinding, LlmClassification
 from noise_filter import prefilter_findings
@@ -21,10 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 def extract_tenant_ids(event: AggregatorEvent) -> tuple[str, str, str, str]:
-    """
-    Obligatorio: TenantId (SaaS) + AwsAccountId (cuenta física).
-    Compat: tenantId / accountId del SFN TypeScript actual.
-    """
     tenant_id = str(event.get("TenantId") or event.get("tenantId") or "").strip()
     account_id = str(event.get("AwsAccountId") or event.get("accountId") or "").strip()
     audit_id = str(event.get("auditId") or "").strip()
@@ -37,58 +41,6 @@ def extract_tenant_ids(event: AggregatorEvent) -> tuple[str, str, str, str]:
     if not audit_id:
         raise ValueError("auditId es obligatorio")
     return tenant_id, account_id, audit_id, correlation_id
-
-
-def _load_json_from_s3(bucket: str, key: str) -> Any:
-    client = boto3.client("s3")
-    obj = client.get_object(Bucket=bucket, Key=key)
-    body = obj["Body"].read()
-    return json.loads(body)
-
-
-def collect_raw_rows(event: AggregatorEvent) -> list[dict[str, Any]]:
-    """Une findings inline + artefactos S3 (Prowler/Trivy) + finops.resources findings."""
-    rows: list[dict[str, Any]] = []
-
-    for key in ("raw_findings", "findings"):
-        block = event.get(key)
-        if isinstance(block, list):
-            rows.extend([r for r in block if isinstance(r, dict)])
-
-    for engine_key in ("secops", "appsec", "finops"):
-        engine = event.get(engine_key)
-        if not isinstance(engine, dict):
-            continue
-        inline = engine.get("findings")
-        if isinstance(inline, list):
-            for r in inline:
-                if isinstance(r, dict):
-                    enriched = {**r, "_source_engine": engine_key}
-                    rows.append(enriched)
-
-        bucket = engine.get("sourceBucket") or event.get("sourceBucket")
-        s3_key = engine.get("sourceKey") or event.get("sourceKey")
-        if bucket and s3_key:
-            try:
-                payload = _load_json_from_s3(str(bucket), str(s3_key))
-                findings = payload.get("findings") if isinstance(payload, dict) else payload
-                if isinstance(findings, list):
-                    for r in findings:
-                        if isinstance(r, dict):
-                            rows.append({**r, "_source_engine": engine_key})
-            except Exception:
-                logger.exception("s3_load_failed", extra={"bucket": bucket, "key": s3_key})
-
-    # Dedup superficial por JSON
-    seen: set[str] = set()
-    unique: list[dict[str, Any]] = []
-    for r in rows:
-        sig = json.dumps(r, sort_keys=True, default=str)[:2000]
-        if sig in seen:
-            continue
-        seen.add(sig)
-        unique.append(r)
-    return unique
 
 
 def _domain_for(finding_id: str, native_code: str) -> str:
@@ -120,16 +72,26 @@ def _enrich_one(
         or classified["native_code"] in COST_FINDING_IDS
         or classified["finding_id"].startswith("COST_")
     ):
+        # Preferir ahorro ya estimado en la fila (CloudQuery/Infracost) si Pricing falla/0
         savings = compute_calculated_savings_usd(
             classified["finding_id"],
             classified["native_code"],
             variables,
         )
+        if savings <= 0:
+            try:
+                savings = float(
+                    raw.get("estimatedMonthlySavingsUsd")
+                    or raw.get("monthlyCost")
+                    or 0
+                )
+            except (TypeError, ValueError):
+                savings = 0.0
 
     i18n = build_i18n_bundle(locale_key, variables, savings)
     domain = _domain_for(classified["finding_id"], classified["native_code"])
     source = str(raw.get("_source_engine") or raw.get("engine") or "unknown")
-    title = str(raw.get("title") or raw.get("Title") or raw.get("check_id") or "")
+    title = str(raw.get("title") or raw.get("Title") or raw.get("checkId") or "")
 
     return EnrichedFinding(
         tenant_id=tenant_id,
@@ -149,32 +111,96 @@ def _enrich_one(
     )
 
 
+def _bedrock_allowed(row: dict[str, Any], mapped_ok: bool) -> bool:
+    """Bedrock solo si el mapa falló (desconocido) y severidad alta, con tope global."""
+    if os.environ.get("ETL_SKIP_BEDROCK", "").lower() in {"1", "true", "yes"}:
+        return False
+    if mapped_ok:
+        return False
+    allowed = {
+        s.strip().upper()
+        for s in os.environ.get("ETL_BEDROCK_SEVERITIES", "CRITICAL,HIGH").split(",")
+        if s.strip()
+    }
+    sev = str(row.get("severity") or row.get("Severity") or "MEDIUM").upper()
+    return sev in allowed or not allowed
+
+
+def _bedrock_max() -> int:
+    try:
+        return max(0, int(os.environ.get("ETL_BEDROCK_MAX", "25")))
+    except ValueError:
+        return 25
+
+
 def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
     tenant_id, account_id, audit_id, correlation_id = extract_tenant_ids(event)
 
-    raw_rows = collect_raw_rows(event)
+    # —— 1) Cuatro motores ——
+    by_engine = collect_four_engine_rows(dict(event))
+    engine_counts = {k: len(v) for k, v in by_engine.items()}
+    raw_rows = flatten_and_dedupe(by_engine)
+
+    # —— 2) Filtro ruido ——
     filtered = prefilter_findings(raw_rows)
+    filtered.sort(key=severity_rank)
+
     logger.info(
-        "prefilter_stats",
-        extra={"raw": len(raw_rows), "kept": len(filtered), "dropped": len(raw_rows) - len(filtered)},
+        "etl_ingest",
+        extra={
+            "engines": engine_counts,
+            "raw": len(raw_rows),
+            "filtered": len(filtered),
+        },
     )
 
     dry_run = os.environ.get("ETL_DRY_RUN", "").lower() in {"1", "true", "yes"}
-    skip_bedrock = os.environ.get("ETL_SKIP_BEDROCK", "").lower() in {"1", "true", "yes"}
-
-    enriched: list[EnrichedFinding] = []
+    bedrock_budget = _bedrock_max()
+    bedrock_used = 0
+    mapped_count = 0
+    bedrock_count = 0
     ignored = 0
     errors = 0
 
+    enriched: list[EnrichedFinding] = []
+
     for row in filtered:
         try:
-            if skip_bedrock:
-                classified = _heuristic_classify(row)
-            else:
-                classified = classify_finding_with_bedrock(row)
+            # —— 3) Mapa local ——
+            classified, mapped_ok = map_row_to_classification(row)
             if classified is None:
                 ignored += 1
                 continue
+
+            # —— 4) Bedrock subset ——
+            if _bedrock_allowed(row, mapped_ok) and bedrock_used < bedrock_budget:
+                try:
+                    ai = classify_finding_with_bedrock(row)
+                    bedrock_used += 1
+                    if ai is not None:
+                        classified = ai
+                        bedrock_count += 1
+                        time.sleep(0.15)  # alivia throttle
+                    else:
+                        # IGNORAR del modelo: descartamos
+                        ignored += 1
+                        continue
+                except Exception:
+                    bedrock_used += 1
+                    logger.warning(
+                        "bedrock_row_failed_using_map",
+                        exc_info=True,
+                    )
+                    # seguimos con el mapa genérico
+                    mapped_count += 1
+            else:
+                if mapped_ok:
+                    mapped_count += 1
+                else:
+                    # desconocido sin cupo Bedrock → genérico
+                    mapped_count += 1
+
+            # —— 5) Pricing + i18n ——
             enriched.append(
                 _enrich_one(
                     tenant_id=tenant_id,
@@ -205,7 +231,6 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
                 estimated_monthly_savings_usd=total_savings,
             )
         except Exception:
-            # Soft: findings ya persistidos; el job AUDIT# puede no existir aún.
             logger.exception("audit_patch_failed")
 
     return {
@@ -213,71 +238,17 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
         "TenantId": tenant_id,
         "AwsAccountId": account_id,
         "auditId": audit_id,
+        "engineCounts": engine_counts,
         "rawCount": len(raw_rows),
         "filteredCount": len(filtered),
         "enrichedCount": len(enriched),
-        "ignoredByLlm": ignored,
+        "mappedWithoutBedrock": mapped_count,
+        "bedrockClassified": bedrock_count,
+        "bedrockBudgetUsed": bedrock_used,
+        "ignored": ignored,
         "rowErrors": errors,
         "criticalCount": critical,
         "CalculatedSavingsNumeric": round(total_savings, 4),
         "dynamoWritten": written,
         "dryRun": dry_run,
-    }
-
-
-def _heuristic_classify(row: dict[str, Any]) -> LlmClassification | None:
-    """Fallback offline / tests sin Bedrock (mismo contrato de variables)."""
-    blob = json.dumps(row, default=str).lower()
-    region = str(row.get("region") or row.get("Region") or "unknown")
-    resource_id = str(
-        row.get("resource_id")
-        or row.get("resourceId")
-        or row.get("resourceArn")
-        or row.get("id")
-        or "unknown"
-    )
-    variables = {
-        "region": region,
-        "volume_type": str(row.get("volume_type") or row.get("volumeType") or "unknown"),
-        "gb": int(row.get("gb") or row.get("size_gb") or row.get("sizeGb") or 0),
-        "instance_type": str(row.get("instance_type") or row.get("instanceType") or "unknown"),
-        "retention_days": int(row.get("retention_days") or row.get("retentionInDays") or 0),
-    }
-
-    if "mfa" in blob:
-        return {
-            "finding_id": "SEC_IAM_HARDENING",
-            "native_code": "aws_iam_user_mfa_enabled",
-            "resource_id": resource_id,
-            "extracted_variables": variables,  # type: ignore[typeddict-item]
-        }
-    if "ssh" in blob or "0.0.0.0/0" in blob:
-        return {
-            "finding_id": "SEC_NETWORK_EXPOSED",
-            "native_code": "aws_security_group_ssh_open",
-            "resource_id": resource_id,
-            "extracted_variables": variables,  # type: ignore[typeddict-item]
-        }
-    if "unattached" in blob or "ebs" in blob and "orphan" in blob:
-        return {
-            "finding_id": "COST_EBS_UNUSED",
-            "native_code": "ebs_volume_unattached",
-            "resource_id": resource_id,
-            "extracted_variables": variables,  # type: ignore[typeddict-item]
-        }
-    if "cve-" in blob or row.get("vulnerabilityId"):
-        return {
-            "finding_id": "SEC_VULNERABILITY",
-            "native_code": str(row.get("vulnerabilityId") or "SEC_VULNERABILITY"),
-            "resource_id": resource_id,
-            "extracted_variables": variables,  # type: ignore[typeddict-item]
-        }
-    status = str(row.get("status") or "").upper()
-    if status in {"PASS", "OK", "SUCCESS", "INFO"}:
-        return None
-    return {
-        "finding_id": "SEC_GENERIC_ALERT",
-        "native_code": str(row.get("check_id") or row.get("checkId") or "SEC_GENERIC_ALERT"),
-        "resource_id": resource_id,
-        "extracted_variables": variables,  # type: ignore[typeddict-item]
     }

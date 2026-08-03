@@ -85,6 +85,10 @@ type AuditFinding @aws_cognito_user_pools {
   recommendedAction: String!
   estimatedMonthlySavingsUsd: Float!
   checkId: String
+  friendlyHeadline: String
+  friendlyWhy: String
+  friendlyAction: String
+  friendlyArea: String
   createdAtIso: AWSDateTime!
 }
 

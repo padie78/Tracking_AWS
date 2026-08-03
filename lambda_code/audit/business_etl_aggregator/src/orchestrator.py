@@ -4,8 +4,8 @@ Pipeline ETL negocio (4 motores):
   1) Cargar CloudQuery + Prowler + Trivy + Infracost
   2) Filtro Python (PASS/OK fuera)
   3) Mapa check_id → native_code / i18n (sin Bedrock)
-  4) Bedrock SOLO subset: desconocidos + CRITICAL/HIGH, tope N
-  5) Pricing API + math CPU → Dynamo FINDING#etl#
+  4) Copy amigable: i18n → caché check_id → Bedrock (desconocidos / genéricos, tope N, dedupe)
+  5) Pricing API + math CPU → Dynamo FINDING#etl# + patch friendly* en findings operativos
 """
 
 from __future__ import annotations
@@ -19,10 +19,21 @@ from bedrock_classifier import classify_finding_with_bedrock
 from check_id_mapper import map_row_to_classification, severity_rank
 from cost_math import compute_calculated_savings_usd
 from dictionary_metadata import COST_FINDING_IDS
-from dynamodb_writer import put_audit_summary, put_enriched_findings
+from dynamodb_writer import (
+    patch_operational_findings_friendly,
+    put_audit_summary,
+    put_enriched_findings,
+)
 from engine_sources import collect_four_engine_rows, flatten_and_dedupe
+from friendly_copy import (
+    friendly_from_i18n,
+    get_cached_friendly,
+    needs_llm_friendly,
+    normalize_check_key,
+    put_cached_friendly,
+)
 from i18n_resolver import build_i18n_bundle, resolve_locale_key, resolve_metadata
-from models import AggregatorEvent, EnrichedFinding, LlmClassification
+from models import AggregatorEvent, EnrichedFinding, FriendlyCopy, LlmClassification
 from noise_filter import prefilter_findings
 
 logger = logging.getLogger(__name__)
@@ -54,6 +65,115 @@ def _domain_for(finding_id: str, native_code: str) -> str:
     return "secops"
 
 
+def _row_check_id(row: dict[str, Any]) -> str:
+    return str(
+        row.get("checkId")
+        or row.get("check_id")
+        or row.get("vulnerabilityId")
+        or row.get("VulnerabilityID")
+        or ""
+    ).strip()
+
+
+def _bedrock_max() -> int:
+    try:
+        return max(0, int(os.environ.get("ETL_BEDROCK_MAX", "25")))
+    except ValueError:
+        return 25
+
+
+def _bedrock_severity_ok(row: dict[str, Any]) -> bool:
+    if os.environ.get("ETL_SKIP_BEDROCK", "").lower() in {"1", "true", "yes"}:
+        return False
+    allowed = {
+        s.strip().upper()
+        for s in os.environ.get("ETL_BEDROCK_SEVERITIES", "CRITICAL,HIGH,MEDIUM").split(",")
+        if s.strip()
+    }
+    sev = str(row.get("severity") or row.get("Severity") or "MEDIUM").upper()
+    return sev in allowed or not allowed
+
+
+def _resolve_friendly(
+    *,
+    tenant_id: str,
+    row: dict[str, Any],
+    classified: LlmClassification,
+    locale_key: str,
+    mapped_ok: bool,
+    es_entry: dict[str, str],
+    metadata: dict[str, Any],
+    domain: str,
+    memory_cache: dict[str, FriendlyCopy],
+    bedrock_budget: list[int],
+    stats: dict[str, int],
+) -> FriendlyCopy:
+    """i18n específico → memoria/Dynamo cache → Bedrock (dedupe por check_id)."""
+    check_key = normalize_check_key(_row_check_id(row) or classified["native_code"])
+
+    # 1) Diccionario i18n no genérico
+    if not needs_llm_friendly(locale_key, mapped_ok):
+        stats["friendlyFromDict"] += 1
+        return friendly_from_i18n(
+            locale_key=locale_key,
+            es=es_entry,  # type: ignore[arg-type]
+            metadata=metadata,  # type: ignore[arg-type]
+            domain=domain,
+        )
+
+    # 2) Memoria del run (mismo check_id muchas veces)
+    if check_key and check_key in memory_cache:
+        stats["friendlyFromMemory"] += 1
+        return memory_cache[check_key]
+
+    # 3) Caché Dynamo por tenant + check
+    cached = get_cached_friendly(tenant_id, check_key) if check_key else None
+    if cached is not None:
+        memory_cache[check_key] = cached
+        stats["friendlyFromCache"] += 1
+        return cached
+
+    # 4) Bedrock (presupuesto compartido, 1 llamada por check_id único)
+    if (
+        _bedrock_severity_ok(row)
+        and bedrock_budget[0] > 0
+        and bedrock_budget[1] < bedrock_budget[0]
+    ):
+        try:
+            ai = classify_finding_with_bedrock(row)
+            bedrock_budget[1] += 1
+            time.sleep(0.12)
+            if ai is not None:
+                # Merge clasificación si era desconocido
+                if not mapped_ok:
+                    classified.update(
+                        {
+                            "finding_id": ai["finding_id"],
+                            "native_code": ai["native_code"],
+                            "resource_id": ai.get("resource_id") or classified["resource_id"],
+                            "extracted_variables": ai["extracted_variables"],
+                        }
+                    )
+                friendly = ai.get("friendly")
+                if friendly:
+                    memory_cache[check_key] = friendly
+                    put_cached_friendly(tenant_id, check_key, friendly)
+                    stats["friendlyFromBedrock"] += 1
+                    return friendly
+        except Exception:
+            bedrock_budget[1] += 1
+            logger.warning("bedrock_friendly_failed", exc_info=True)
+
+    # 5) Fallback i18n genérico
+    stats["friendlyFallback"] += 1
+    return friendly_from_i18n(
+        locale_key=locale_key,
+        es=es_entry,  # type: ignore[arg-type]
+        metadata=metadata,  # type: ignore[arg-type]
+        domain=domain,
+    )
+
+
 def _enrich_one(
     *,
     tenant_id: str,
@@ -61,6 +181,7 @@ def _enrich_one(
     audit_id: str,
     raw: dict[str, Any],
     classified: LlmClassification,
+    friendly: FriendlyCopy,
 ) -> EnrichedFinding:
     locale_key = resolve_locale_key(classified["native_code"], classified["finding_id"])
     metadata = resolve_metadata(locale_key)
@@ -72,7 +193,6 @@ def _enrich_one(
         or classified["native_code"] in COST_FINDING_IDS
         or classified["finding_id"].startswith("COST_")
     ):
-        # Preferir ahorro ya estimado en la fila (CloudQuery/Infracost) si Pricing falla/0
         savings = compute_calculated_savings_usd(
             classified["finding_id"],
             classified["native_code"],
@@ -89,9 +209,16 @@ def _enrich_one(
                 savings = 0.0
 
     i18n = build_i18n_bundle(locale_key, variables, savings)
+    # Preferir copy amigable resuelto (dict/cache/Bedrock) sobre plantilla genérica
+    i18n_es = dict(i18n["es"])
+    i18n_es["explanation"] = friendly["headline"]
+    i18n_es["business_impact"] = friendly["why"]
+    i18n = {**i18n, "es": i18n_es}  # type: ignore[assignment]
+
     domain = _domain_for(classified["finding_id"], classified["native_code"])
     source = str(raw.get("_source_engine") or raw.get("engine") or "unknown")
     title = str(raw.get("title") or raw.get("Title") or raw.get("checkId") or "")
+    check_id = _row_check_id(raw) or classified["native_code"]
 
     return EnrichedFinding(
         tenant_id=tenant_id,
@@ -108,40 +235,18 @@ def _enrich_one(
         domain=domain,  # type: ignore[arg-type]
         source_engine=source,
         raw_title=title,
+        check_id=check_id,
+        friendly=friendly,
     )
-
-
-def _bedrock_allowed(row: dict[str, Any], mapped_ok: bool) -> bool:
-    """Bedrock solo si el mapa falló (desconocido) y severidad alta, con tope global."""
-    if os.environ.get("ETL_SKIP_BEDROCK", "").lower() in {"1", "true", "yes"}:
-        return False
-    if mapped_ok:
-        return False
-    allowed = {
-        s.strip().upper()
-        for s in os.environ.get("ETL_BEDROCK_SEVERITIES", "CRITICAL,HIGH").split(",")
-        if s.strip()
-    }
-    sev = str(row.get("severity") or row.get("Severity") or "MEDIUM").upper()
-    return sev in allowed or not allowed
-
-
-def _bedrock_max() -> int:
-    try:
-        return max(0, int(os.environ.get("ETL_BEDROCK_MAX", "25")))
-    except ValueError:
-        return 25
 
 
 def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
     tenant_id, account_id, audit_id, correlation_id = extract_tenant_ids(event)
 
-    # —— 1) Cuatro motores ——
     by_engine = collect_four_engine_rows(dict(event))
     engine_counts = {k: len(v) for k, v in by_engine.items()}
     raw_rows = flatten_and_dedupe(by_engine)
 
-    # —— 2) Filtro ruido ——
     filtered = prefilter_findings(raw_rows)
     filtered.sort(key=severity_rank)
 
@@ -155,52 +260,60 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
     )
 
     dry_run = os.environ.get("ETL_DRY_RUN", "").lower() in {"1", "true", "yes"}
-    bedrock_budget = _bedrock_max()
-    bedrock_used = 0
-    mapped_count = 0
-    bedrock_count = 0
-    ignored = 0
-    errors = 0
+    # [max, used]
+    bedrock_budget = [_bedrock_max(), 0]
+    memory_cache: dict[str, FriendlyCopy] = {}
+    stats = {
+        "friendlyFromDict": 0,
+        "friendlyFromMemory": 0,
+        "friendlyFromCache": 0,
+        "friendlyFromBedrock": 0,
+        "friendlyFallback": 0,
+        "mappedWithoutBedrock": 0,
+        "ignored": 0,
+        "rowErrors": 0,
+    }
 
     enriched: list[EnrichedFinding] = []
 
     for row in filtered:
         try:
-            # —— 3) Mapa local ——
             classified, mapped_ok = map_row_to_classification(row)
             if classified is None:
-                ignored += 1
+                stats["ignored"] += 1
                 continue
 
-            # —— 4) Bedrock subset ——
-            if _bedrock_allowed(row, mapped_ok) and bedrock_used < bedrock_budget:
-                try:
-                    ai = classify_finding_with_bedrock(row)
-                    bedrock_used += 1
-                    if ai is not None:
-                        classified = ai
-                        bedrock_count += 1
-                        time.sleep(0.15)  # alivia throttle
-                    else:
-                        # IGNORAR del modelo: descartamos
-                        ignored += 1
-                        continue
-                except Exception:
-                    bedrock_used += 1
-                    logger.warning(
-                        "bedrock_row_failed_using_map",
-                        exc_info=True,
-                    )
-                    # seguimos con el mapa genérico
-                    mapped_count += 1
-            else:
-                if mapped_ok:
-                    mapped_count += 1
-                else:
-                    # desconocido sin cupo Bedrock → genérico
-                    mapped_count += 1
+            locale_key = resolve_locale_key(
+                classified["native_code"], classified["finding_id"]
+            )
+            metadata = resolve_metadata(locale_key)
+            domain = _domain_for(classified["finding_id"], classified["native_code"])
 
-            # —— 5) Pricing + i18n ——
+            # i18n preliminar (savings 0) solo para armar fallback de copy
+            prelim_i18n = build_i18n_bundle(locale_key, classified["extracted_variables"], 0.0)
+
+            friendly = _resolve_friendly(
+                tenant_id=tenant_id,
+                row=row,
+                classified=classified,
+                locale_key=locale_key,
+                mapped_ok=mapped_ok,
+                es_entry=prelim_i18n["es"],
+                metadata=metadata,
+                domain=domain,
+                memory_cache=memory_cache,
+                bedrock_budget=bedrock_budget,
+                stats=stats,
+            )
+
+            # Si Bedrock reclasificó, refrescar locale
+            locale_key = resolve_locale_key(
+                classified["native_code"], classified["finding_id"]
+            )
+
+            if mapped_ok and not needs_llm_friendly(locale_key, mapped_ok):
+                stats["mappedWithoutBedrock"] += 1
+
             enriched.append(
                 _enrich_one(
                     tenant_id=tenant_id,
@@ -208,18 +321,28 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
                     audit_id=audit_id,
                     raw=row,
                     classified=classified,
+                    friendly=friendly,
                 )
             )
         except Exception:
-            errors += 1
+            stats["rowErrors"] += 1
             logger.exception("row_pipeline_failed")
 
     total_savings = sum(f.calculated_savings_usd for f in enriched)
     critical = sum(1 for f in enriched if f.metadata["severity"] == "CRITICAL")
 
     written = 0
+    patched = 0
     if not dry_run and enriched:
         written = put_enriched_findings(enriched)
+        try:
+            patched = patch_operational_findings_friendly(
+                tenant_id=tenant_id,
+                audit_id=audit_id,
+                enriched=enriched,
+            )
+        except Exception:
+            logger.exception("patch_operational_friendly_failed")
         try:
             put_audit_summary(
                 tenant_id=tenant_id,
@@ -242,13 +365,19 @@ def run_pipeline(event: AggregatorEvent) -> dict[str, Any]:
         "rawCount": len(raw_rows),
         "filteredCount": len(filtered),
         "enrichedCount": len(enriched),
-        "mappedWithoutBedrock": mapped_count,
-        "bedrockClassified": bedrock_count,
-        "bedrockBudgetUsed": bedrock_used,
-        "ignored": ignored,
-        "rowErrors": errors,
+        "mappedWithoutBedrock": stats["mappedWithoutBedrock"],
+        "bedrockClassified": stats["friendlyFromBedrock"],
+        "bedrockBudgetUsed": bedrock_budget[1],
+        "friendlyFromDict": stats["friendlyFromDict"],
+        "friendlyFromMemory": stats["friendlyFromMemory"],
+        "friendlyFromCache": stats["friendlyFromCache"],
+        "friendlyFromBedrock": stats["friendlyFromBedrock"],
+        "friendlyFallback": stats["friendlyFallback"],
+        "ignored": stats["ignored"],
+        "rowErrors": stats["rowErrors"],
         "criticalCount": critical,
         "CalculatedSavingsNumeric": round(total_savings, 4),
         "dynamoWritten": written,
+        "operationalPatched": patched,
         "dryRun": dry_run,
     }

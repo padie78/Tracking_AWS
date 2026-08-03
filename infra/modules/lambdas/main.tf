@@ -224,8 +224,9 @@ resource "aws_lambda_function" "business_etl_aggregator" {
       BEDROCK_REGION          = data.aws_region.current.name
       PROWLER_FINDINGS_BUCKET = var.prowler_findings_bucket
       AUDIT_DETAIL_TTL_DAYS   = "14"
-      ETL_BEDROCK_MAX         = "25"
-      ETL_BEDROCK_SEVERITIES  = "CRITICAL,HIGH"
+      ETL_BEDROCK_MAX         = "40"
+      ETL_BEDROCK_SEVERITIES  = "CRITICAL,HIGH,MEDIUM"
+      FRIENDLY_COPY_TTL_DAYS  = "90"
     })
   }
 }

@@ -12,6 +12,7 @@ import boto3
 from botocore.config import Config
 
 from bedrock_prompt import BEDROCK_MODEL_ID, SYSTEM_PROMPT
+from friendly_copy import parse_friendly_from_llm
 from models import ExtractedVariables, LlmClassification
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def classify_finding_with_bedrock(raw_row: dict[str, Any]) -> LlmClassification 
                 ],
             }
         ],
-        inferenceConfig={"maxTokens": 512, "temperature": 0},
+        inferenceConfig={"maxTokens": 768, "temperature": 0},
     )
 
     text = _extract_text(response)
@@ -130,9 +131,13 @@ def classify_finding_with_bedrock(raw_row: dict[str, Any]) -> LlmClassification 
     if not finding_id or not native_code:
         return None
 
-    return {
+    out: LlmClassification = {
         "finding_id": finding_id,
         "native_code": native_code,
         "resource_id": resource_id,
         "extracted_variables": _normalize_variables(data.get("extracted_variables")),
     }
+    friendly = parse_friendly_from_llm(data)
+    if friendly is not None:
+        out["friendly"] = friendly
+    return out

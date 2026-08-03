@@ -29,6 +29,10 @@ export interface AuditFindingProps {
   recommendedAction: string;
   estimatedMonthlySavingsUsd: number;
   checkId: string | null;
+  friendlyHeadline?: string | null;
+  friendlyWhy?: string | null;
+  friendlyAction?: string | null;
+  friendlyArea?: string | null;
   createdAtIso: string;
 }
 
@@ -89,6 +93,18 @@ export class AuditFinding {
   }
   get checkId(): string | null {
     return this.props.checkId;
+  }
+  get friendlyHeadline(): string | null {
+    return this.props.friendlyHeadline ?? null;
+  }
+  get friendlyWhy(): string | null {
+    return this.props.friendlyWhy ?? null;
+  }
+  get friendlyAction(): string | null {
+    return this.props.friendlyAction ?? null;
+  }
+  get friendlyArea(): string | null {
+    return this.props.friendlyArea ?? null;
   }
   get createdAtIso(): string {
     return this.props.createdAtIso;

@@ -96,6 +96,7 @@ def main() -> None:
     assert result["enrichedCount"] >= 4
     assert result["bedrockClassified"] == 0
     assert result["mappedWithoutBedrock"] >= 4
+    assert result["friendlyFromDict"] >= 4
     print("SMOKE_OK")
 
 

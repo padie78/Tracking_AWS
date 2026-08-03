@@ -63,11 +63,24 @@ def put_enriched_findings(findings: Iterable[EnrichedFinding]) -> int:
     with table.batch_writer(overwrite_by_pkeys=["PK", "SK"]) as batch:
         for f in findings:
             fid = f"{f.native_code}#{f.resource_id}"[:180]
+            friendly = f.friendly
+            title = (
+                (friendly["headline"] if friendly else f.i18n["es"]["explanation"])[:240]
+            )
+            rationale = (
+                friendly["why"] if friendly else f.i18n["es"]["business_impact"]
+            )
+            action = (
+                friendly["action"]
+                if friendly
+                else f.metadata["solution_slug"]
+            )
             item = {
                 "PK": audit_findings_pk(f.tenant_id, f.audit_id),
                 "SK": finding_sk(f.domain, fid),
                 "entityType": "AUDIT_FINDING_ETL",
                 "TenantId": f.tenant_id,
+                "tenantId": f.tenant_id,
                 "AwsAccountId": f.aws_account_id,
                 "auditId": f.audit_id,
                 "findingId": fid,
@@ -77,10 +90,16 @@ def put_enriched_findings(findings: Iterable[EnrichedFinding]) -> int:
                 "resolvedLocaleKey": f.resolved_locale_key,
                 "severity": f.metadata["severity"],
                 "resourceId": f.resource_id,
+                "resourceArn": f.resource_id,
                 "region": f.extracted_variables.get("region", "unknown"),
-                "title": f.i18n["es"]["explanation"][:240],
-                "rationale": f.i18n["es"]["business_impact"],
-                "recommendedAction": f.metadata["solution_slug"],
+                "title": title,
+                "rationale": rationale,
+                "recommendedAction": action,
+                "checkId": f.check_id or f.native_code,
+                "friendlyHeadline": friendly["headline"] if friendly else title,
+                "friendlyWhy": friendly["why"] if friendly else rationale,
+                "friendlyAction": friendly["action"] if friendly else action,
+                "friendlyArea": friendly["area"] if friendly else f.metadata["aws_service"],
                 "estimatedMonthlySavingsUsd": _to_dynamo(f.calculated_savings_usd),
                 "CalculatedSavingsNumeric": _to_dynamo(f.calculated_savings_usd),
                 "awsService": f.metadata["aws_service"],
@@ -107,6 +126,91 @@ def put_enriched_findings(findings: Iterable[EnrichedFinding]) -> int:
 
     logger.info("dynamo_findings_written", extra={"count": count})
     return count
+
+
+def patch_operational_findings_friendly(
+    *,
+    tenant_id: str,
+    audit_id: str,
+    enriched: Iterable[EnrichedFinding],
+) -> int:
+    """
+    Parcha FINDING#secops|finops|architecture del aggregate TS con friendly*.
+    Match por checkId normalizado (y fallback resourceId).
+    No toca FINDING#etl#.
+    """
+    from friendly_copy import normalize_check_key
+
+    by_check: dict[str, EnrichedFinding] = {}
+    by_resource: dict[str, EnrichedFinding] = {}
+    for f in enriched:
+        if not f.friendly:
+            continue
+        ck = normalize_check_key(f.check_id or f.native_code)
+        if ck and ck not in by_check:
+            by_check[ck] = f
+        rid = (f.resource_id or "").strip()
+        if rid and rid not in by_resource:
+            by_resource[rid] = f
+
+    if not by_check and not by_resource:
+        return 0
+
+    table = _table()
+    pk = audit_findings_pk(tenant_id, audit_id)
+    patched = 0
+    exclusive_start_key: dict[str, Any] | None = None
+
+    while True:
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": "PK = :pk AND begins_with(SK, :sk)",
+            "ExpressionAttributeValues": {":pk": pk, ":sk": "FINDING#"},
+        }
+        if exclusive_start_key:
+            kwargs["ExclusiveStartKey"] = exclusive_start_key
+        page = table.query(**kwargs)
+        for item in page.get("Items") or []:
+            sk = str(item.get("SK") or "")
+            if sk.startswith("FINDING#etl#"):
+                continue
+            entity = str(item.get("entityType") or "")
+            if entity == "AUDIT_FINDING_ETL":
+                continue
+
+            check = normalize_check_key(str(item.get("checkId") or ""))
+            resource = str(item.get("resourceId") or "").strip()
+            match = by_check.get(check) if check else None
+            if match is None and resource:
+                match = by_resource.get(resource)
+            if match is None or not match.friendly:
+                continue
+
+            fr = match.friendly
+            try:
+                table.update_item(
+                    Key={"PK": pk, "SK": sk},
+                    UpdateExpression=(
+                        "SET friendlyHeadline = :h, friendlyWhy = :w, "
+                        "friendlyAction = :a, friendlyArea = :ar, "
+                        "title = :h, rationale = :w, recommendedAction = :a"
+                    ),
+                    ExpressionAttributeValues={
+                        ":h": fr["headline"],
+                        ":w": fr["why"],
+                        ":a": fr["action"],
+                        ":ar": fr["area"],
+                    },
+                )
+                patched += 1
+            except Exception:
+                logger.warning("friendly_patch_item_failed", extra={"sk": sk}, exc_info=True)
+
+        exclusive_start_key = page.get("LastEvaluatedKey")
+        if not exclusive_start_key:
+            break
+
+    logger.info("operational_findings_friendly_patched", extra={"count": patched})
+    return patched
 
 
 def patch_audit_business_etl(

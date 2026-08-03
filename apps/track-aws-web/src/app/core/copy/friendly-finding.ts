@@ -14,6 +14,11 @@ export type FindingLike = {
   resourceId?: string | null;
   region?: string | null;
   estimatedMonthlySavingsUsd?: number | null;
+  /** Copy persistido por Business ETL / Bedrock */
+  friendlyHeadline?: string | null;
+  friendlyWhy?: string | null;
+  friendlyAction?: string | null;
+  friendlyArea?: string | null;
 };
 
 export type FriendlyFinding = {
@@ -133,6 +138,13 @@ const RULES: Rule[] = [
     area: 'Datos',
   },
   {
+    test: (h) => /appsync|graphql.*api.?key|api_key_authentication|api.key.*auth/.test(h),
+    headline: 'La API GraphQL usa una clave demasiado simple',
+    why: 'Cualquiera con esa clave puede consultar o cambiar datos. Es fácil de filtrar o compartir por error.',
+    action: 'Pasá a login de usuarios (Cognito/IAM) y desactivá la API Key en producción.',
+    area: 'Aplicaciones',
+  },
+  {
     test: (h) => /cve-|vulnerab|trivy|package.*severity/.test(h),
     headline: 'Hay una falla conocida en el software (CVE)',
     why: 'Los atacantes buscan estas fallas en Internet apenas se publican.',
@@ -185,6 +197,10 @@ function softenTechnical(text: string | null | undefined, fallback: string): str
   if (!t) return fallback;
   // Evita pegar check_ids crudos como único mensaje
   if (/^[a-z0-9_.-]{8,}$/i.test(t) && !/\s/.test(t)) return fallback;
+  // Remediaciones genéricas del pipeline (no aportan al novato)
+  if (/revisar remediaci|documentaci[oó]n cis|security hub|cis \/ aws/i.test(t)) {
+    return fallback;
+  }
   return t
     .replace(/\bFAIL\b/gi, 'problema')
     .replace(/\bPASSED?\b/gi, 'ok')
@@ -203,13 +219,26 @@ export function friendlyDomain(domain: string | null | undefined): string {
 }
 
 export function humanizeFinding(f: FindingLike): FriendlyFinding {
-  const hay = haystack(f);
-  const matched = RULES.find((r) => r.test(hay));
   const urgencyLabel = friendlySeverity(f.severity);
   const whereParts = [
     f.region && f.region !== 'global' && f.region !== 'unknown' ? f.region : null,
     shortResource(f.resourceId),
   ].filter(Boolean);
+
+  // 1) Copy persistido (ETL diccionario / caché / Bedrock)
+  if (f.friendlyHeadline?.trim() && f.friendlyWhy?.trim() && f.friendlyAction?.trim()) {
+    return {
+      headline: f.friendlyHeadline.trim(),
+      whyItMatters: f.friendlyWhy.trim(),
+      whatToDo: f.friendlyAction.trim(),
+      where: whereParts.join(' · '),
+      urgencyLabel,
+      areaLabel: (f.friendlyArea || friendlyDomain(f.domain)).trim(),
+    };
+  }
+
+  const hay = haystack(f);
+  const matched = RULES.find((r) => r.test(hay));
 
   if (matched) {
     return {

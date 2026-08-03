@@ -30,6 +30,10 @@ export class ListAuditFindingsUseCase {
         recommendedAction: f.recommendedAction,
         estimatedMonthlySavingsUsd: f.estimatedMonthlySavingsUsd,
         checkId: f.checkId,
+        friendlyHeadline: f.friendlyHeadline,
+        friendlyWhy: f.friendlyWhy,
+        friendlyAction: f.friendlyAction,
+        friendlyArea: f.friendlyArea,
         createdAtIso: f.createdAtIso,
       }));
   }

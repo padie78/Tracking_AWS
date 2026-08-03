@@ -15,6 +15,11 @@ import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
 import { savingsBarOption, severityPieOption } from '../../ui/charts/chart-options';
+import {
+  FriendlyFinding,
+  humanizeFinding,
+  type FindingLike,
+} from '../../core/copy/friendly-finding';
 
 type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
 
@@ -100,14 +105,18 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
         <ul class="ta-finding-list">
           @for (f of filtered(); track f.findingId) {
             <li>
-              <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
+              <span class="ta-sev" [attr.data-sev]="f.severity">{{ friendly(f).urgencyLabel }}</span>
               <div>
-                <strong>{{ f.title }}</strong>
+                <strong>{{ friendly(f).headline }}</strong>
                 <div class="ta-meta">
-                  {{ f.category }} · {{ f.resourceId }} · USD
-                  {{ f.estimatedMonthlySavingsUsd | number: '1.0-2' }}/mes
+                  {{ friendly(f).areaLabel }}
+                  @if (friendly(f).where) {
+                    · {{ friendly(f).where }}
+                  }
+                  · ~USD {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }}/mes
                 </div>
-                <div class="ta-meta"><strong>Cómo ahorrar:</strong> {{ f.recommendedAction }}</div>
+                <div class="ta-meta"><strong>Por qué importa:</strong> {{ friendly(f).whyItMatters }}</div>
+                <div class="ta-meta"><strong>Qué hacer:</strong> {{ friendly(f).whatToDo }}</div>
               </div>
             </li>
           } @empty {
@@ -178,6 +187,10 @@ export class FinopsPageComponent implements OnInit {
     }
     return severityPieOption(counts);
   });
+
+  friendly(f: FindingLike): FriendlyFinding {
+    return humanizeFinding(f);
+  }
 
   ngOnInit(): void {
     void this.refresh();

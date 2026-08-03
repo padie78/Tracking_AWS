@@ -5,6 +5,11 @@ import { TenantContextService } from '../../core/tenant/tenant-context.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { AuditProgressComponent } from '../../ui/audit/audit-progress.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
+import {
+  FriendlyFinding,
+  humanizeFinding,
+  type FindingLike,
+} from '../../core/copy/friendly-finding';
 
 @Component({
   standalone: true,
@@ -111,12 +116,15 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
           <ul class="ta-finding-list">
             @for (f of audit.findings().slice(0, 40); track f.findingId) {
               <li>
-                <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
+                <span class="ta-sev" [attr.data-sev]="f.severity">{{ friendly(f).urgencyLabel }}</span>
                 <div>
-                  <strong>{{ f.title }}</strong>
+                  <strong>{{ friendly(f).headline }}</strong>
                   <div class="ta-meta">
-                    {{ f.domain }}/{{ f.category }} · {{ f.resourceId }} ·
-                    {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }} USD/mes
+                    {{ friendly(f).areaLabel }}
+                    @if (friendly(f).where) {
+                      · {{ friendly(f).where }}
+                    }
+                    · {{ f.estimatedMonthlySavingsUsd | number: '1.0-0' }} USD/mes
                   </div>
                 </div>
               </li>
@@ -132,6 +140,10 @@ export class AuditsPageComponent implements OnInit {
   readonly tenant = inject(TenantContextService);
 
   readonly selected = computed(() => this.audit.activeAudit());
+
+  friendly(f: FindingLike): FriendlyFinding {
+    return humanizeFinding(f);
+  }
 
   ngOnInit(): void {
     void this.audit.bootstrap();

@@ -9,9 +9,10 @@ Env:
   PROWLER_FINDINGS_BUCKET
   BEDROCK_MODEL_ID
   ETL_SKIP_BEDROCK=true     → nunca Bedrock
-  ETL_BEDROCK_MAX=25        → tope de llamadas Bedrock
-  ETL_BEDROCK_SEVERITIES=CRITICAL,HIGH
+  ETL_BEDROCK_MAX=25        → tope de llamadas Bedrock (por check_id único)
+  ETL_BEDROCK_SEVERITIES=CRITICAL,HIGH,MEDIUM
   ETL_DRY_RUN=true
+  FRIENDLY_COPY_TTL_DAYS=90
 """
 
 from __future__ import annotations
@@ -49,6 +50,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "enrichedCount",
                 "mappedWithoutBedrock",
                 "bedrockClassified",
+                "friendlyFromDict",
+                "friendlyFromBedrock",
+                "friendlyFromCache",
+                "operationalPatched",
                 "CalculatedSavingsNumeric",
                 "dynamoWritten",
             )

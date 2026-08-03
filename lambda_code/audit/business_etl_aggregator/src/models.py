@@ -21,11 +21,21 @@ class ExtractedVariables(TypedDict):
     retention_days: int
 
 
+class FriendlyCopy(TypedDict):
+    """Texto ES para novatos (headline / por qué / qué hacer)."""
+
+    headline: str
+    why: str
+    action: str
+    area: str
+
+
 class LlmClassification(TypedDict):
     finding_id: str
     native_code: str
     resource_id: str
     extracted_variables: ExtractedVariables
+    friendly: NotRequired[FriendlyCopy]
 
 
 class ComplianceMap(TypedDict):
@@ -87,4 +97,6 @@ class EnrichedFinding:
     domain: Literal["secops", "finops"]
     source_engine: str
     raw_title: str = ""
+    check_id: str = ""
+    friendly: FriendlyCopy | None = None
     extra: dict[str, Any] = field(default_factory=dict)

@@ -63,6 +63,10 @@ export interface AuditFindingView {
   recommendedAction: string;
   estimatedMonthlySavingsUsd: number;
   checkId: string | null;
+  friendlyHeadline?: string | null;
+  friendlyWhy?: string | null;
+  friendlyAction?: string | null;
+  friendlyArea?: string | null;
   createdAtIso: string;
 }
 
@@ -296,6 +300,10 @@ const LIST_AUDIT_FINDINGS = /* GraphQL */ `
       recommendedAction
       estimatedMonthlySavingsUsd
       checkId
+      friendlyHeadline
+      friendlyWhy
+      friendlyAction
+      friendlyArea
       createdAtIso
     }
   }

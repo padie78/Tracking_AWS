@@ -229,15 +229,24 @@ export class DynamoDbAuditFindingRepository
         | undefined;
     } while (exclusiveStartKey);
 
-    return items.map((item) =>
+    return items
+      .filter((item) => {
+        const sk = String(item['SK'] ?? '');
+        const entity = String(item['entityType'] ?? '');
+        if (sk.startsWith('FINDING#etl#') || entity === 'AUDIT_FINDING_ETL') {
+          return false;
+        }
+        return true;
+      })
+      .map((item) =>
       AuditFinding.reconstitute({
-        tenantId: String(item['tenantId']),
+        tenantId: String(item['tenantId'] ?? item['TenantId'] ?? ''),
         auditId: String(item['auditId']),
         findingId: String(item['findingId']),
         domain: item['domain'] as FindingDomain,
         category: String(item['category']),
         severity: item['severity'] as AuditSeverity,
-        resourceArn: String(item['resourceArn']),
+        resourceArn: String(item['resourceArn'] ?? item['resourceId'] ?? ''),
         resourceId: String(item['resourceId']),
         region: String(item['region']),
         title: String(item['title']),
@@ -247,6 +256,10 @@ export class DynamoDbAuditFindingRepository
           item['estimatedMonthlySavingsUsd'] ?? 0,
         ),
         checkId: (item['checkId'] as string | null) ?? null,
+        friendlyHeadline: (item['friendlyHeadline'] as string | null) ?? null,
+        friendlyWhy: (item['friendlyWhy'] as string | null) ?? null,
+        friendlyAction: (item['friendlyAction'] as string | null) ?? null,
+        friendlyArea: (item['friendlyArea'] as string | null) ?? null,
         createdAtIso: String(item['createdAtIso']),
       }),
     );

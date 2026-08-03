@@ -16,6 +16,11 @@ import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
 import { severityPieOption } from '../../ui/charts/chart-options';
+import {
+  FriendlyFinding,
+  humanizeFinding,
+  type FindingLike,
+} from '../../core/copy/friendly-finding';
 
 type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
 
@@ -104,19 +109,21 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
       </div>
 
       <div class="ta-card" style="margin-top:1rem">
-        <h2 class="ta-card__title">Qué puede ser atacado / misconfigurations</h2>
+        <h2 class="ta-card__title">Problemas a corregir</h2>
         <ul class="ta-finding-list">
           @for (f of filtered(); track f.findingId) {
             <li>
-              <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
+              <span class="ta-sev" [attr.data-sev]="f.severity">{{ friendly(f).urgencyLabel }}</span>
               <div>
-                <strong>{{ f.title }}</strong>
+                <strong>{{ friendly(f).headline }}</strong>
                 <div class="ta-meta">
-                  {{ attackBucket(f.category, f.title, f.checkId) }} ·
-                  {{ f.checkId || 'n/a' }} · {{ f.region }} · {{ f.resourceId }}
+                  {{ friendly(f).areaLabel }}
+                  @if (friendly(f).where) {
+                    · {{ friendly(f).where }}
+                  }
                 </div>
-                <div class="ta-meta"><strong>Riesgo:</strong> {{ f.rationale }}</div>
-                <div class="ta-meta"><strong>Mitigación:</strong> {{ f.recommendedAction }}</div>
+                <div class="ta-meta"><strong>Por qué importa:</strong> {{ friendly(f).whyItMatters }}</div>
+                <div class="ta-meta"><strong>Qué hacer:</strong> {{ friendly(f).whatToDo }}</div>
               </div>
             </li>
           } @empty {
@@ -193,6 +200,10 @@ export class SecopsPageComponent implements OnInit {
     if (/sg|security.group|0\.0\.0\.0|network|port|ssh|rdp/.test(hay)) return 'network';
     if (/s3|bucket|storage|public.access/.test(hay)) return 'storage';
     return 'other';
+  }
+
+  friendly(f: FindingLike): FriendlyFinding {
+    return humanizeFinding(f);
   }
 
   ngOnInit(): void {

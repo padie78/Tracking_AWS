@@ -22,6 +22,11 @@ import {
   severityPieOption,
   wafRadarOption,
 } from '../../ui/charts/chart-options';
+import {
+  FriendlyFinding,
+  humanizeFinding,
+  type FindingLike,
+} from '../../core/copy/friendly-finding';
 
 @Component({
   standalone: true,
@@ -153,10 +158,10 @@ import {
         <ul class="ta-action-list">
           @for (f of topActions(); track f.findingId) {
             <li>
-              <span class="ta-sev" [attr.data-sev]="f.severity">{{ f.severity }}</span>
+              <span class="ta-sev" [attr.data-sev]="f.severity">{{ friendly(f).urgencyLabel }}</span>
               <div>
-                <strong>{{ f.title }}</strong>
-                <div class="ta-meta">{{ f.domain }} · {{ f.resourceId }}</div>
+                <strong>{{ friendly(f).headline }}</strong>
+                <div class="ta-meta">{{ friendly(f).areaLabel }} · {{ friendly(f).where }}</div>
               </div>
             </li>
           } @empty {
@@ -273,6 +278,10 @@ export class DashboardPageComponent implements OnInit {
       )
       .slice(0, 5);
   });
+
+  friendly(f: FindingLike): FriendlyFinding {
+    return humanizeFinding(f);
+  }
 
   ngOnInit(): void {
     void this.audit.bootstrap();

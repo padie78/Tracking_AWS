@@ -197,7 +197,8 @@ def _enrich_one(
             classified["native_code"],
             variables,
         )
-        if savings <= 0:
+        # Fallback solo si no hubo telemetría de tamaño (p. ej. CloudQuery ya trajo $)
+        if savings <= 0 and not variables.get("log_size_resolved"):
             try:
                 savings = float(
                     raw.get("estimatedMonthlySavingsUsd")

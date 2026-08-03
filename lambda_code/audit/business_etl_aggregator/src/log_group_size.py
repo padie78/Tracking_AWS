@@ -73,9 +73,20 @@ def _parse_log_group_ref(resource: str) -> tuple[str | None, str | None]:
 def _row_region(row: dict[str, Any], fallback: str) -> str:
     for k in ("region", "Region", "awsRegion", "AwsRegion"):
         v = row.get(k)
-        if v is not None and str(v).strip() and str(v).strip() != "unknown":
+        if v is not None and str(v).strip():
+            r = str(v).strip().lower()
+            # Prowler marca IAM/algunos CW como "global" — Logs es regional.
+            if r in {"unknown", "global", "aws", "n/a", "null"}:
+                continue
             return str(v).strip()
     return fallback
+
+
+def _normalize_region(region: str | None, fallback: str) -> str:
+    r = (region or "").strip()
+    if not r or r.lower() in {"unknown", "global", "aws", "n/a", "null"}:
+        return fallback
+    return r
 
 
 def assume_customer_credentials(
@@ -139,7 +150,7 @@ def fetch_stored_bytes(
             logGroupNamePrefix=log_group_name,
             limit=50,
         )
-    except ClientError:
+    except Exception:
         logger.warning(
             "describe_log_groups_failed",
             extra={"region": region, "logGroup": log_group_name},
@@ -197,7 +208,7 @@ def enrich_rows_with_log_group_sizes(
         if not name:
             stats["missing"] += 1
             continue
-        region = region_hint or _row_region(row, default_region)
+        region = _normalize_region(region_hint, _row_region(row, default_region))
         stats["candidates"] += 1
         targets.append((row, region, name))
 

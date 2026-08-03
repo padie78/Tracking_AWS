@@ -276,9 +276,9 @@ export class DynamoDbAuditFindingRepository
     );
 
     /**
-     * Prefer findings operativos (Aggregate TS).
-     * Si no hay finops operativos (CloudQuery vacío), exponer FINDING#etl#finops
-     * del Business ETL para que Costos no quede en blanco.
+     * Siempre mezclar FINDING#etl#finops (Business ETL).
+     * Los operativos CloudQuery suelen venir vacíos; sin ETL, Costos queda en blanco.
+     * Deduplicar por findingId.
      */
     const isEtl = (item: Record<string, unknown>): boolean => {
       const sk = String(item['SK'] ?? '');
@@ -291,17 +291,24 @@ export class DynamoDbAuditFindingRepository
       .filter(({ item }) => !isEtl(item))
       .map(({ finding }) => finding);
 
-    const hasOpsFinops = opsItems.some((f) => f.domain === 'finops');
-    if (hasOpsFinops) {
-      return opsItems;
-    }
-
     const etlFinops = items
       .map((item, idx) => ({ item, finding: mapped[idx]! }))
-      .filter(({ item, finding }) => isEtl(item) && finding.domain === 'finops')
+      .filter(({ item, finding }) => {
+        if (!isEtl(item)) return false;
+        if (finding.domain === 'finops') return true;
+        const cat = finding.category.toUpperCase();
+        return cat.startsWith('COST_');
+      })
       .map(({ finding }) => finding);
 
-    return [...opsItems, ...etlFinops];
+    const seen = new Set(opsItems.map((f) => f.findingId));
+    const merged = [...opsItems];
+    for (const f of etlFinops) {
+      if (seen.has(f.findingId)) continue;
+      seen.add(f.findingId);
+      merged.push(f);
+    }
+    return merged;
   }
 }
 

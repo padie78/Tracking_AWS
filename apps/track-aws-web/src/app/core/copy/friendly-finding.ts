@@ -941,9 +941,11 @@ function finalize(
     ? null
     : cleanEvidence(f.recommendedAction, 320);
   const healthy =
-    isHealthyStatusText(f.rationale) ||
-    isHealthyStatusText(f.title) ||
-    /control ok|control passed|no hay secretos|no secrets in/i.test(guarded.headline);
+    findingDomain(f) !== 'finops' &&
+    !(f.category || '').toUpperCase().startsWith('COST_') &&
+    (isHealthyStatusText(f.rationale) ||
+      isHealthyStatusText(f.title) ||
+      /control ok|control passed|no hay secretos|no secrets in/i.test(guarded.headline));
 
   const resourceRef = (f.resourceArn || f.resourceId || '').trim() || null;
 

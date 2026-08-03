@@ -38,37 +38,32 @@ type FinopsCard = {
   service: string;
 };
 
-/** Solo hallazgos de costo reales — nunca Prowler/Trivy/IAM/secrets. */
+/** Hallazgos de costo: domain finops / categoría COST_* / ahorro > 0. Excluye SecOps claro. */
 function isFinopsFinding(f: FindingLike): boolean {
-  const hay = [
-    f.checkId,
-    f.title,
-    f.category,
-    f.rationale,
-    f.domain,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+  const check = (f.checkId ?? '').toLowerCase();
+  const category = (f.category ?? '').toLowerCase();
+  const domain = (f.domain ?? '').toLowerCase();
+  const title = (f.title ?? '').toLowerCase();
 
+  // Seguridad explícita (Prowler/Trivy/IAM) — nunca en Costos
   if (
-    /prowler|trivy|cis[_-]|awslambda_function_no_secrets|secrets?_in_code|hardcoded.?secret|security.?group|iam_user|user_mfa|\bmfa\b|cve-|vulnerability|public_access|0\.0\.0\.0|ssh_open|rdp/.test(
-      hay,
-    )
+    /prowler|trivy/.test(check) ||
+    category.startsWith('sec_') ||
+    /awslambda_function_no_secrets|secrets_in_code|hardcoded.?secret|iam_user_mfa|user_mfa|securitygroup|ssh_open|cve-/.test(
+      check,
+    ) ||
+    /no_secrets_in_code|secrets_in_code/.test(title)
   ) {
     return false;
   }
-
-  const domain = (f.domain || '').toLowerCase();
-  if (domain === 'secops' || domain === 'architecture') return false;
+  if (domain === 'secops') return false;
 
   if (domain === 'finops') return true;
+  if (category.startsWith('cost_')) return true;
+  if ((f.estimatedMonthlySavingsUsd ?? 0) > 0) return true;
 
-  return (
-    (f.estimatedMonthlySavingsUsd ?? 0) > 0 ||
-    /rightsiz|orphan|unattached|eip|infracost|waste|retention|moderniz|cost_|ebs_unused|idle|underutil|sobredimension|graviton|log_group|serverless_waste/.test(
-      hay,
-    )
+  return /rightsiz|orphan|unattached|eip|infracost|waste|retention|moderniz|ebs_unused|idle|underutil|sobredimension|graviton|log_group|serverless_waste/.test(
+    `${check} ${category} ${title}`,
   );
 }
 
@@ -381,12 +376,10 @@ export class FinopsPageComponent implements OnInit {
     for (const f of this.audit.findings()) {
       if (!isFinopsFinding(f as FindingLike)) continue;
       const ui = humanizeFinding(f as FindingLike, lang);
-      if (ui.isHealthy) continue;
-      // Segunda red: copy de seguridad no entra a Costos
+      // PASS de seguridad no aplica; hallazgos de costo con copy “OK” sí se listan si hay $ 
       if (
-        /permisos|secretos hardcode|mfa|security group|puerto de red|expuest/i.test(
-          ui.headline,
-        )
+        ui.isHealthy &&
+        !(f.estimatedMonthlySavingsUsd > 0 || (f.category || '').toUpperCase().startsWith('COST_'))
       ) {
         continue;
       }

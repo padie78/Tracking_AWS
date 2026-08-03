@@ -22,6 +22,10 @@ variable "aggregate_audit_arn" {
   type = string
 }
 
+variable "business_etl_aggregator_arn" {
+  type = string
+}
+
 variable "fail_audit_arn" {
   type = string
 }

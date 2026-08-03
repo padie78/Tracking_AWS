@@ -3,15 +3,14 @@
   --ta-font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --ta-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* OpenRouter-like product chrome: light, airy, hairline borders */
-  --ta-bg: #f7f7f8;
+  --ta-bg: #f4f6f8;
   --ta-bg-elevated: #ffffff;
-  --ta-bg-panel: #f3f4f6;
+  --ta-bg-panel: #eef1f4;
   --ta-bg-input: #ffffff;
-  --ta-border: #e5e7eb;
-  --ta-border-strong: #d1d5db;
-  --ta-text: #111827;
-  --ta-text-muted: #6b7280;
+  --ta-border: #e2e8f0;
+  --ta-border-strong: #cbd5e1;
+  --ta-text: #0f172a;
+  --ta-text-muted: #64748b;
   --ta-accent: #0d9488;
   --ta-accent-hover: #0f766e;
   --ta-accent-2: #2563eb;
@@ -20,10 +19,10 @@
   --ta-success: #059669;
   --ta-focus: rgba(13, 148, 136, 0.28);
   --ta-sidebar: #ffffff;
-  --ta-header: rgba(255, 255, 255, 0.92);
+  --ta-header: rgba(255, 255, 255, 0.94);
 
-  --ta-radius: 12px;
-  --ta-radius-sm: 8px;
+  --ta-radius: 14px;
+  --ta-radius-sm: 10px;
   --ta-radius-pill: 999px;
   --ta-space-1: 0.25rem;
   --ta-space-2: 0.5rem;
@@ -31,7 +30,14 @@
   --ta-space-4: 1rem;
   --ta-space-5: 1.5rem;
   --ta-space-6: 2rem;
-  --ta-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.04);
+  --ta-space-7: 2.75rem;
+  --ta-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0.05);
+  --ta-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+
+  --ta-nav-width: 272px;
+  --ta-main-pad-x: clamp(1.25rem, 2.2vw, 2rem);
+  --ta-main-pad-y: clamp(1.25rem, 2vw, 1.85rem);
+  --ta-page-gap: 1.35rem;
 
   --ion-color-primary: #0d9488;
   --ion-color-primary-contrast: #ffffff;

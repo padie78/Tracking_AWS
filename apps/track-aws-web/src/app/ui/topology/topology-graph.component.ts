@@ -6,6 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import type { EChartsCoreOption } from 'echarts/core';
+import { ButtonModule } from 'primeng/button';
 import { TaEchartComponent } from '../charts/ta-echart.component';
 
 export interface TopologyNodeView {
@@ -94,17 +95,30 @@ function categoryIndex(computeClass: string): number {
 function categoryName(computeClass: string): string {
   switch (computeClass) {
     case 'serverless':
-      return 'Serverless';
+      return 'Sin servidores';
     case 'non_serverless':
-      return 'No Serverless';
+      return 'Con servidores';
     case 'network':
-      return 'Network';
+      return 'Red';
     case 'data':
-      return 'Data';
+      return 'Datos';
     case 'identity':
-      return 'Identity';
+      return 'Identidad';
     default:
-      return 'Other';
+      return 'Otros';
+  }
+}
+
+function healthLabel(health: string): string {
+  switch (health) {
+    case 'GREEN':
+      return 'Bien';
+    case 'YELLOW':
+      return 'Atención';
+    case 'RED':
+      return 'Crítico';
+    default:
+      return health;
   }
 }
 
@@ -273,40 +287,40 @@ function buildDetail(snap: TopologySnapshotView): {
   standalone: true,
   selector: 'ta-topology-graph',
   encapsulation: ViewEncapsulation.None,
-  imports: [TaEchartComponent],
+  imports: [TaEchartComponent, ButtonModule],
   template: `
     <div class="ta-topo">
       <div class="ta-topo__toolbar">
         <div class="ta-topo__modes">
           <button
+            pButton
             type="button"
-            class="ta-btn ta-btn--sm"
-            [class.ta-btn--ghost]="mode() !== 'overview'"
+            class="p-button-sm"
+            [class.p-button-outlined]="mode() !== 'overview'"
+            label="Resumen"
             (click)="mode.set('overview')"
-          >
-            Resumen
-          </button>
+          ></button>
           <button
+            pButton
             type="button"
-            class="ta-btn ta-btn--sm"
-            [class.ta-btn--ghost]="mode() !== 'risks'"
+            class="p-button-sm"
+            [class.p-button-outlined]="mode() !== 'risks'"
+            label="Riesgos"
             (click)="mode.set('risks')"
-          >
-            Riesgos
-          </button>
+          ></button>
           <button
+            pButton
             type="button"
-            class="ta-btn ta-btn--sm"
-            [class.ta-btn--ghost]="mode() !== 'detail'"
+            class="p-button-sm"
+            [class.p-button-outlined]="mode() !== 'detail'"
+            label="Detalle"
             (click)="mode.set('detail')"
-          >
-            Detalle
-          </button>
+          ></button>
         </div>
         <div class="ta-topo__legend">
-          <span><i data-h="healthy"></i> GREEN</span>
-          <span><i data-h="degraded"></i> YELLOW</span>
-          <span><i data-h="critical"></i> RED</span>
+          <span><i data-h="healthy"></i> Bien</span>
+          <span><i data-h="degraded"></i> Atención</span>
+          <span><i data-h="critical"></i> Crítico</span>
           <span class="ta-meta">{{ hint() }}</span>
         </div>
       </div>
@@ -361,11 +375,11 @@ export class TopologyGraphComponent {
   readonly hint = computed(() => {
     switch (this.mode()) {
       case 'overview':
-        return 'Nodos = tipo de recurso agregado';
+        return 'Vista agrupada por tipo de recurso';
       case 'risks':
-        return 'Solo RED/YELLOW + red ancla';
+        return 'Solo recursos en atención o críticos';
       default:
-        return 'Hasta ~36 recursos individuales';
+        return 'Vista detallada de recursos individuales';
     }
   });
 
@@ -374,7 +388,7 @@ export class TopologyGraphComponent {
     if (!snap || snap.nodes.length === 0) {
       return {
         title: {
-          text: 'Sin topología para este audit',
+          text: 'Todavía no hay mapa para esta revisión',
           left: 'center',
           top: 'center',
           textStyle: { color: '#64748b', fontSize: 14 },
@@ -401,12 +415,12 @@ export class TopologyGraphComponent {
     }
 
     const categories = [
-      { name: 'Serverless' },
-      { name: 'No Serverless' },
-      { name: 'Network' },
-      { name: 'Data' },
-      { name: 'Identity' },
-      { name: 'Other' },
+      { name: 'Sin servidores' },
+      { name: 'Con servidores' },
+      { name: 'Red' },
+      { name: 'Datos' },
+      { name: 'Identidad' },
+      { name: 'Otros' },
     ];
 
     const useCircular = this.mode() === 'overview' || view.nodes.length <= 24;
@@ -433,7 +447,7 @@ export class TopologyGraphComponent {
             `<strong>${title}</strong>`,
             `${n.resourceType} · ${categoryName(n.computeClass)}`,
             n.region !== 'multi' ? `${n.region} · ${n.state}` : 'agregado',
-            `salud: ${n.health}`,
+            `estado: ${healthLabel(n.health)}`,
             `~$${Math.round(n.estimatedMonthlyCostUsd)}/mes`,
             arn ? `<span style="opacity:.75">ARN: ${arn}</span>` : '',
           ]

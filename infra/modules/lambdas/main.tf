@@ -204,3 +204,44 @@ resource "aws_lambda_function" "alert_dispatcher" {
     variables = merge(local.core_env, local.audit_env)
   }
 }
+
+# Business ETL (Python): i18n + Bedrock classifier + AWS Pricing API
+resource "aws_lambda_function" "business_etl_aggregator" {
+  function_name    = "${var.name_prefix}-business-etl-aggregator"
+  role             = aws_iam_role.lambda_exec.arn
+  runtime          = "python3.11"
+  handler          = "handler.lambda_handler"
+  filename         = data.archive_file.bootstrap_python.output_path
+  source_code_hash = data.archive_file.bootstrap_python.output_base64sha256
+  timeout          = 600
+  memory_size      = 1024
+  architectures    = ["x86_64"]
+
+  environment {
+    variables = merge(local.core_env, {
+      DYNAMODB_TABLE_NAME     = var.table_name
+      BEDROCK_MODEL_ID        = var.bedrock_model_id
+      BEDROCK_REGION          = data.aws_region.current.name
+      PROWLER_FINDINGS_BUCKET = var.prowler_findings_bucket
+      AUDIT_DETAIL_TTL_DAYS   = "14"
+    })
+  }
+}
+
+data "aws_region" "current" {}
+
+data "archive_file" "bootstrap_python" {
+  type        = "zip"
+  output_path = "${path.module}/.artifacts/bootstrap_python.zip"
+
+  source {
+    filename = "handler.py"
+    content  = <<-EOT
+      def lambda_handler(event, context):
+          return {
+              "ok": False,
+              "message": "Bootstrap Python. Real code is published by deploy-lambdas workflow.",
+          }
+    EOT
+  }
+}

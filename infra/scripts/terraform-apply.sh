@@ -16,3 +16,5 @@ terraform output cloudquery_inventory_name
 terraform output load_prowler_results_name
 terraform output load_trivy_results_name
 terraform output aggregate_audit_name
+terraform output business_etl_aggregator_name
+terraform output fail_audit_name

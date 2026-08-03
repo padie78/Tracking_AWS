@@ -49,6 +49,8 @@
     "hyparquet-writer": "^0.16.4",
     "ionicons": "^7.4.0",
     "ngx-echarts": "^17.2.0",
+    "primeicons": "^7.0.0",
+    "primeng": "^17.18.15",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zod": "^3.24.1",

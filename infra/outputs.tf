@@ -154,6 +154,10 @@ output "aggregate_audit_name" {
   value = module.lambdas.aggregate_audit_name
 }
 
+output "business_etl_aggregator_name" {
+  value = module.lambdas.business_etl_aggregator_name
+}
+
 output "fail_audit_name" {
   value = module.lambdas.fail_audit_name
 }

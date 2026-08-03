@@ -8,9 +8,11 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { DropdownModule } from 'primeng/dropdown';
 import { AuthService } from '../../core/services/auth.service';
 import {
-  NAV_ICON_GLYPH,
+  NAV_ICON_CLASS,
   navFocusForRole,
   navItemsForRole,
 } from '../../core/navigation/app-nav.config';
@@ -25,6 +27,11 @@ import {
 } from '../../ui/notifications/notification-center.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 
+type AccountOption = {
+  accountId: string;
+  label: string;
+};
+
 @Component({
   standalone: true,
   selector: 'app-shell-page',
@@ -34,6 +41,8 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
     RouterLink,
     RouterLinkActive,
     FormsModule,
+    ButtonModule,
+    DropdownModule,
     NotificationCenterComponent,
     ToastStackComponent,
     StatusBadgeComponent,
@@ -43,42 +52,42 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
       <header class="ta-header">
         <div class="ta-header__left">
           <button
+            pButton
             type="button"
-            class="ta-btn ta-btn--ghost ta-btn--icon ta-shell__menu-btn"
+            class="ta-shell__menu-btn p-button-outlined p-button-icon-only"
+            icon="pi pi-bars"
             aria-label="Abrir menú"
             [attr.aria-expanded]="navOpen()"
             aria-controls="ta-shell-nav"
             (click)="toggleNav()"
-          >
-            ☰
-          </button>
+          ></button>
           <a routerLink="/tabs/dashboard" class="ta-brand" (click)="closeNav()">
             Track <span>AWS</span>
           </a>
           <span class="ta-header__divider" aria-hidden="true"></span>
           <div class="ta-workspace">
-            <span class="ta-workspace__label">Workspace</span>
+            <span class="ta-workspace__label">Espacio</span>
             <strong>{{ auth.tenantId() || '—' }}</strong>
             <span class="ta-chip">{{ roleLabel(auth.userRole()) }}</span>
           </div>
         </div>
 
         <div class="ta-header__center">
-          <label class="ta-header__search">
-            <span class="ta-header__search-icon" aria-hidden="true">⌕</span>
-            <select
-              class="ta-select ta-select--bare"
-              [ngModel]="tenant.activeAccountId() ?? ''"
+          <div class="ta-header__search">
+            <i class="pi pi-cloud ta-header__search-icon" aria-hidden="true"></i>
+            <p-dropdown
+              [options]="accountOptions()"
+              [ngModel]="tenant.activeAccountId()"
               (ngModelChange)="onAccountChange($event)"
-            >
-              <option value="" disabled>Seleccionar cuenta AWS…</option>
-              @for (a of accounts(); track a.accountId) {
-                <option [value]="a.accountId">
-                  {{ a.displayName || a.accountId }} · {{ a.status }}
-                </option>
-              }
-            </select>
-          </label>
+              optionLabel="label"
+              optionValue="accountId"
+              placeholder="Elegí una cuenta AWS…"
+              [style]="{ width: '100%' }"
+              [filter]="accountOptions().length > 6"
+              filterPlaceholder="Buscar cuenta"
+              appendTo="body"
+            />
+          </div>
         </div>
 
         <div class="ta-header__right">
@@ -97,9 +106,14 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
             }
           }
           <ta-notification-center />
-          <button type="button" class="ta-btn ta-btn--ghost ta-btn--sm" (click)="logout()">
-            Salir
-          </button>
+          <button
+            pButton
+            type="button"
+            label="Salir"
+            icon="pi pi-sign-out"
+            class="p-button-outlined p-button-sm"
+            (click)="logout()"
+          ></button>
         </div>
       </header>
 
@@ -123,9 +137,14 @@ import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
                   [title]="item.description"
                   (click)="closeNav()"
                 >
-                  <span class="ta-nav-list__icon" aria-hidden="true">{{ glyph[item.icon] }}</span>
+                  <span class="ta-nav-list__icon" aria-hidden="true">
+                    <i [class]="iconClass[item.icon]"></i>
+                  </span>
                   <span class="ta-nav-list__text">
-                    <span class="ta-nav-list__label">{{ item.label }}</span>
+                    <span class="ta-nav-list__label">
+                      <span class="ta-nav-list__mod">M{{ item.module }}</span>
+                      {{ item.label }}
+                    </span>
                     <span class="ta-nav-list__desc">{{ item.description }}</span>
                   </span>
                 </a>
@@ -150,7 +169,7 @@ export class ShellPageComponent implements OnInit {
   readonly notes = inject(NotificationService);
   private readonly scanService = inject(ScanService);
   readonly roleLabel = roleLabel;
-  readonly glyph = NAV_ICON_GLYPH;
+  readonly iconClass = NAV_ICON_CLASS;
   readonly navOpen = signal(false);
 
   readonly navItems = computed(() => navItemsForRole(this.auth.userRole()));
@@ -158,6 +177,13 @@ export class ShellPageComponent implements OnInit {
   readonly accounts = signal<
     Awaited<ReturnType<ScanService['listAwsAccounts']>>
   >([]);
+
+  readonly accountOptions = computed((): AccountOption[] =>
+    this.accounts().map((a) => ({
+      accountId: a.accountId,
+      label: `${a.displayName || a.accountId} · ${a.status}`,
+    })),
+  );
 
   ngOnInit(): void {
     void this.audit.bootstrap();
@@ -185,13 +211,14 @@ export class ShellPageComponent implements OnInit {
     }
   }
 
-  onAccountChange(accountId: string): void {
+  onAccountChange(accountId: string | null): void {
+    if (!accountId) return;
     this.tenant.setActiveAccount(accountId);
     this.closeNav();
     this.notes.push({
       kind: 'info',
       title: 'Cuenta activa',
-      body: `Ahora auditás ${accountId}`,
+      body: `Ahora revisás ${accountId}`,
       toast: true,
     });
     void this.audit.refreshAudits();

@@ -37,14 +37,25 @@ data "aws_iam_policy_document" "lambda_inline" {
   }
 
   statement {
-    sid     = "BedrockInvokeDossier"
-    effect  = "Allow"
-    actions = ["bedrock:InvokeModel"]
+    sid    = "BedrockInvokeAndConverse"
+    effect = "Allow"
+    actions = [
+      "bedrock:InvokeModel",
+      "bedrock:Converse",
+    ]
     resources = [
       "arn:aws:bedrock:*::foundation-model/${var.bedrock_model_id}",
       "arn:aws:bedrock:*:*:inference-profile/*",
       "arn:aws:bedrock:*:*:foundation-model/${var.bedrock_model_id}",
     ]
+  }
+
+  # Price List API solo en us-east-1 (cliente boto3 ya fija esa región).
+  statement {
+    sid       = "AwsPricingApi"
+    effect    = "Allow"
+    actions   = ["pricing:GetProducts", "pricing:DescribeServices"]
+    resources = ["*"]
   }
 
   statement {

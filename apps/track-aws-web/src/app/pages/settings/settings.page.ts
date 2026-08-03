@@ -1,5 +1,9 @@
 import { Component, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
+import { DropdownModule } from 'primeng/dropdown';
+import { FloatLabelModule } from 'primeng/floatlabel';
+import { InputTextModule } from 'primeng/inputtext';
 import { AuthService } from '../../core/services/auth.service';
 import { TenantContextService } from '../../core/tenant/tenant-context.service';
 import {
@@ -7,145 +11,170 @@ import {
   ScanService,
 } from '../../services/scan.service';
 import { AppSyncRealtimeService } from '../../services/appsync-realtime.service';
+import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 
 @Component({
   standalone: true,
   selector: 'app-settings-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    ButtonModule,
+    DropdownModule,
+    FloatLabelModule,
+    InputTextModule,
+    PageHeaderComponent,
+  ],
   template: `
     <section class="ta-page ta-page--wide">
-      <div class="ta-page__head">
-        <div>
-          <h1>Settings</h1>
-          <p>
-            Conectá una cuenta AWS con AssumeRole + External ID. Track_AWS no guarda
-            credenciales permanentes.
-          </p>
-        </div>
-      </div>
+      <ta-page-header
+        eyebrow="Módulo 9"
+        title="Ajustes"
+        subtitle="Conectá cuentas AWS, avisos al equipo y permisos. No guardamos claves permanentes."
+      />
 
       @if (!auth.isAdmin()) {
-        <div class="ta-error">Solo finops_admin puede gestionar conexiones.</div>
+        <div class="ta-error">Solo un administrador puede gestionar las conexiones.</div>
       } @else {
-        <div class="ta-form-grid" style="gap: 1.25rem">
+        <div class="ta-form-grid" style="gap: 1.35rem">
           <form class="ta-card" (ngSubmit)="connect()">
             <div class="ta-steps">
               <div class="ta-chip">Paso 1</div>
-              <h2 class="ta-steps__title">Generar vínculo cross-account</h2>
+              <h2 class="ta-steps__title">Vincular una cuenta AWS</h2>
               <p class="ta-meta" style="margin:0">
-                External ID + plantilla CloudFormation para el rol scanner.
+                Generamos un identificador seguro y una plantilla para crear el rol
+                de lectura en tu cuenta.
               </p>
             </div>
 
-            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1rem">
-              <div class="ta-float" [class.--filled]="!!accountId">
+            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1.15rem">
+              <p-floatLabel>
                 <input
-                  class="ta-input"
+                  pInputText
+                  id="set-account"
                   name="accountId"
                   [(ngModel)]="accountId"
                   pattern="\\d{12}"
                   required
-                  placeholder=" "
                   inputmode="numeric"
+                  style="width:100%"
                 />
-                <label>Account ID (12 dígitos)</label>
-              </div>
-              <div class="ta-float" [class.--filled]="!!displayName">
+                <label for="set-account">ID de cuenta (12 dígitos)</label>
+              </p-floatLabel>
+              <p-floatLabel>
                 <input
-                  class="ta-input"
+                  pInputText
+                  id="set-name"
                   name="displayName"
                   [(ngModel)]="displayName"
-                  placeholder=" "
+                  style="width:100%"
                 />
-                <label>Nombre (Prod / FinOps)</label>
-              </div>
-              <div class="ta-float" style="grid-column: 1 / -1" [class.--filled]="!!roleName">
+                <label for="set-name">Nombre (Prod / Finanzas)</label>
+              </p-floatLabel>
+              <p-floatLabel style="grid-column: 1 / -1">
                 <input
-                  class="ta-input"
+                  pInputText
+                  id="set-role"
                   name="roleName"
                   [(ngModel)]="roleName"
-                  placeholder=" "
+                  style="width:100%"
                 />
-                <label>Rol IAM</label>
-              </div>
+                <label for="set-role">Nombre del rol de lectura</label>
+              </p-floatLabel>
             </div>
 
             <div class="ta-form-actions">
-              <button class="ta-btn" type="submit" [disabled]="busy()">
-                {{ busy() ? 'Conectando…' : 'Generar External ID + plantilla' }}
-              </button>
+              <button
+                pButton
+                type="submit"
+                icon="pi pi-link"
+                [label]="busy() ? 'Conectando…' : 'Generar vínculo y plantilla'"
+                [disabled]="busy()"
+              ></button>
             </div>
           </form>
 
           @if (linkResult(); as link) {
             <div class="ta-card">
               <div class="ta-steps">
-                <div class="ta-chip" [class.ta-chip--ok]="link.status === 'active'" [class.ta-chip--warn]="link.status === 'pending'">
+                <div
+                  class="ta-chip"
+                  [class.ta-chip--ok]="link.status === 'active'"
+                  [class.ta-chip--warn]="link.status === 'pending'"
+                >
                   Paso 2 · {{ link.status }}
                 </div>
-                <h2 class="ta-steps__title">Desplegá el rol en la cuenta cliente</h2>
+                <h2 class="ta-steps__title">Activá el rol en la cuenta cliente</h2>
               </div>
 
               @if (link.status === 'pending') {
                 <div class="ta-info" style="margin-top: 0.85rem">
-                  <strong>pending</strong> es normal tras el alta. Todavía no se puede auditar.
+                  <strong>Pendiente</strong> es normal tras el alta. Todavía no se puede revisar.
                   <ol style="margin: 0.55rem 0 0; padding-left: 1.2rem; color: inherit">
-                    <li>Abrí CloudFormation (botón abajo) en la cuenta <code>{{ link.accountId }}</code>.</li>
-                    <li>Creá el stack (los parámetros External ID / Account ya vienen precargados).</li>
-                    <li>Cuando el stack termine en CREATE_COMPLETE, pulsá <strong>Verificar AssumeRole</strong>.</li>
-                    <li>Si pasa, el estado pasa a <strong>active</strong> y aparece usable en el combo.</li>
+                    <li>Abrí la plantilla (botón abajo) en la cuenta <code>{{ link.accountId }}</code>.</li>
+                    <li>Creá el stack con los parámetros ya precargados.</li>
+                    <li>Cuando termine, pulsá <strong>Verificar conexión</strong>.</li>
+                    <li>Si pasa, el estado pasa a <strong>active</strong> y podés usarla en el menú.</li>
                   </ol>
                 </div>
               }
 
-              <div class="ta-form-grid" style="margin-top: 1rem">
+              <div class="ta-form-grid" style="margin-top: 1.15rem">
                 <div class="ta-field">
-                  <span class="ta-field__label">Role ARN</span>
-                  <input class="ta-input" [value]="link.roleArn" readonly />
+                  <span class="ta-field__label">ARN del rol</span>
+                  <input pInputText [value]="link.roleArn" readonly style="width:100%" />
                 </div>
                 <div class="ta-field">
                   <span class="ta-field__label">External ID</span>
                   <input
-                    class="ta-input"
+                    pInputText
                     [value]="link.externalId"
                     readonly
+                    style="width:100%"
                     (click)="$any($event.target).select()"
                   />
-                  <span class="ta-field__hint">Copiá al trust policy / CloudFormation.</span>
+                  <span class="ta-field__hint">Copiá este valor si lo pedís en la plantilla.</span>
                 </div>
                 <div class="ta-form-grid ta-form-grid--2">
                   <div class="ta-field">
-                    <span class="ta-field__label">Scanner account</span>
-                    <input class="ta-input" [value]="link.scannerAccountId" readonly />
+                    <span class="ta-field__label">Cuenta scanner</span>
+                    <input pInputText [value]="link.scannerAccountId" readonly style="width:100%" />
                   </div>
                   <div class="ta-field">
-                    <span class="ta-field__label">Scanner role</span>
-                    <input class="ta-input" [value]="link.scannerRoleArn" readonly />
+                    <span class="ta-field__label">Rol scanner</span>
+                    <input pInputText [value]="link.scannerRoleArn" readonly style="width:100%" />
                   </div>
                 </div>
               </div>
 
               <div class="ta-form-actions">
-                <a class="ta-btn" [href]="link.cloudFormationUrl" target="_blank" rel="noopener">
-                  Abrir CloudFormation
-                </a>
+                <a
+                  pButton
+                  class="p-button"
+                  [href]="link.cloudFormationUrl"
+                  target="_blank"
+                  rel="noopener"
+                  label="Abrir plantilla"
+                  icon="pi pi-external-link"
+                ></a>
                 <button
-                  class="ta-btn ta-btn--secondary"
+                  pButton
                   type="button"
+                  class="p-button-outlined"
+                  icon="pi pi-check"
+                  [label]="busy() ? 'Verificando…' : 'Verificar conexión'"
                   [disabled]="busy()"
                   (click)="verify()"
-                >
-                  {{ busy() ? 'Verificando…' : 'Verificar AssumeRole' }}
-                </button>
+                ></button>
                 <button
-                  class="ta-btn ta-btn--ghost"
+                  pButton
                   type="button"
+                  class="p-button-text"
+                  icon="pi pi-play"
+                  [label]="busy() ? 'Iniciando…' : 'Iniciar revisión'"
                   [disabled]="busy() || link.status !== 'active'"
                   (click)="startAudit()"
-                >
-                  {{ busy() ? 'Iniciando…' : 'Start audit' }}
-                </button>
+                ></button>
               </div>
             </div>
           }
@@ -169,12 +198,12 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
                         {{ a.status }}
                       </span>
                       <button
+                        pButton
                         type="button"
-                        class="ta-btn ta-btn--ghost ta-btn--sm"
+                        class="p-button-outlined p-button-sm"
+                        label="Usar"
                         (click)="selectAccount(a.accountId)"
-                      >
-                        Usar
-                      </button>
+                      ></button>
                     </div>
                   </li>
                 }
@@ -185,40 +214,56 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
           <div class="ta-card">
             <div class="ta-steps">
               <div class="ta-chip">Alertas</div>
-              <h2 class="ta-steps__title">Canales al cliente</h2>
+              <h2 class="ta-steps__title">Canales de aviso</h2>
               <p class="ta-meta" style="margin:0">
-                Slack / webhook / email (SNS) para digests post-audit.
+                Slack, webhook o email para resúmenes después de cada revisión.
               </p>
             </div>
 
-            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1rem">
+            <div class="ta-form-grid ta-form-grid--2" style="margin-top: 1.15rem">
               <div class="ta-field">
                 <span class="ta-field__label">Tipo</span>
-                <select class="ta-select" name="alertKind" [(ngModel)]="alertKind">
-                  <option value="slack">Slack Incoming Webhook</option>
-                  <option value="webhook">Webhook HTTPS</option>
-                  <option value="email">Email (vía SNS)</option>
-                </select>
+                <p-dropdown
+                  [options]="alertKindOptions"
+                  [(ngModel)]="alertKind"
+                  name="alertKind"
+                  optionLabel="label"
+                  optionValue="value"
+                  [style]="{ width: '100%' }"
+                  appendTo="body"
+                />
               </div>
-              <div class="ta-float" [class.--filled]="!!alertLabel">
-                <input class="ta-input" name="alertLabel" [(ngModel)]="alertLabel" placeholder=" " />
-                <label>Etiqueta</label>
-              </div>
-              <div class="ta-float" style="grid-column: 1 / -1" [class.--filled]="!!alertTarget">
+              <p-floatLabel>
                 <input
-                  class="ta-input"
+                  pInputText
+                  id="alert-label"
+                  name="alertLabel"
+                  [(ngModel)]="alertLabel"
+                  style="width:100%"
+                />
+                <label for="alert-label">Etiqueta</label>
+              </p-floatLabel>
+              <p-floatLabel style="grid-column: 1 / -1">
+                <input
+                  pInputText
+                  id="alert-target"
                   name="alertTarget"
                   [(ngModel)]="alertTarget"
-                  placeholder=" "
+                  style="width:100%"
                 />
-                <label>Destino (URL o email)</label>
-              </div>
+                <label for="alert-target">Destino (URL o email)</label>
+              </p-floatLabel>
             </div>
 
             <div class="ta-form-actions">
-              <button class="ta-btn" type="button" [disabled]="busy()" (click)="saveAlert()">
-                Guardar canal
-              </button>
+              <button
+                pButton
+                type="button"
+                icon="pi pi-save"
+                label="Guardar canal"
+                [disabled]="busy()"
+                (click)="saveAlert()"
+              ></button>
             </div>
 
             @if (alertChannels().length) {
@@ -231,12 +276,13 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
                       <div class="ta-meta">{{ c.kind }} · {{ c.target }}</div>
                     </div>
                     <button
+                      pButton
                       type="button"
-                      class="ta-btn ta-btn--ghost ta-btn--sm"
+                      class="p-button-outlined p-button-sm"
+                      icon="pi pi-trash"
+                      label="Eliminar"
                       (click)="removeAlert(c.channelId)"
-                    >
-                      Eliminar
-                    </button>
+                    ></button>
                   </li>
                 }
               </ul>
@@ -244,7 +290,7 @@ import { AppSyncRealtimeService } from '../../services/appsync-realtime.service'
           </div>
 
           @if (lastScanId()) {
-            <div class="ta-info">Último auditId: {{ lastScanId() }}</div>
+            <div class="ta-info">Última revisión: {{ lastScanId() }}</div>
           }
           @if (error()) {
             <div class="ta-error">{{ error() }}</div>
@@ -266,6 +312,12 @@ export class SettingsPageComponent implements OnInit {
   alertKind: 'webhook' | 'slack' | 'email' = 'slack';
   alertTarget = '';
   alertLabel = 'Ops';
+
+  readonly alertKindOptions = [
+    { label: 'Slack (webhook)', value: 'slack' as const },
+    { label: 'Webhook HTTPS', value: 'webhook' as const },
+    { label: 'Email', value: 'email' as const },
+  ];
 
   readonly linkResult = signal<LinkAwsAccountResultView | null>(null);
   readonly accounts = signal<
@@ -344,11 +396,11 @@ export class SettingsPageComponent implements OnInit {
 
   async connect(): Promise<void> {
     if (!this.auth.tenantId()) {
-      this.error.set('Falta custom:tenant_id en el token Cognito.');
+      this.error.set('Falta el identificador de organización en tu sesión.');
       return;
     }
     if (!/^\d{12}$/.test(this.accountId.trim())) {
-      this.error.set('Account ID debe tener 12 dígitos.');
+      this.error.set('El ID de cuenta debe tener 12 dígitos.');
       return;
     }
 

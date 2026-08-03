@@ -7,7 +7,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
@@ -19,45 +22,55 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
   standalone: true,
   selector: 'app-finops-page',
   encapsulation: ViewEncapsulation.None,
-  imports: [DecimalPipe, PageHeaderComponent, TaEchartComponent, RouterLink],
+  imports: [
+    DecimalPipe,
+    FormsModule,
+    ButtonModule,
+    SelectButtonModule,
+    PageHeaderComponent,
+    TaEchartComponent,
+    RouterLink,
+  ],
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
-        eyebrow="Cost"
-        title="FinOps"
-        subtitle="Qué está sobredimensionado, huérfano o modernizable — y cuánto podés ahorrar."
+        eyebrow="Módulo 4"
+        title="Control de gastos"
+        subtitle="Recursos caros o sin uso, oportunidades de ahorro y avisos si el gasto se desvía."
       >
-        <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="refresh()">
-          {{ busy() ? 'Cargando…' : 'Actualizar' }}
-        </button>
+        <button
+          pButton
+          type="button"
+          class="p-button-outlined"
+          icon="pi pi-refresh"
+          [label]="busy() ? 'Cargando…' : 'Actualizar'"
+          [disabled]="busy()"
+          (click)="refresh()"
+        ></button>
       </ta-page-header>
 
       @if (error()) {
-        <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
+        <div class="ta-error">{{ error() }}</div>
       }
 
       @if (audit.activeAudit(); as a) {
-        <div class="ta-meta" style="margin-bottom:0.75rem">
-          Audit <code>{{ a.auditId.slice(0, 8) }}…</code>
-          · {{ a.status }} · {{ a.findingCount }} findings totales · cuenta
+        <div class="ta-meta">
+          Revisión <code>{{ a.auditId.slice(0, 8) }}…</code>
+          · {{ a.status }} · {{ a.findingCount }} hallazgos · cuenta
           {{ a.accountId }}
           ·
           <a class="ta-link" routerLink="/tabs/audits">cambiar en Historial</a>
         </div>
       }
 
-      <div class="ta-tabs">
-        @for (t of tabs; track t.id) {
-          <button
-            type="button"
-            class="ta-tabs__btn"
-            [class.active]="tab() === t.id"
-            (click)="tab.set(t.id)"
-          >
-            {{ t.label }}
-          </button>
-        }
-      </div>
+      <p-selectButton
+        [options]="tabs"
+        [(ngModel)]="tabModel"
+        optionLabel="label"
+        optionValue="id"
+        [style]="{ width: '100%' }"
+        (ngModelChange)="tab.set($event)"
+      />
 
       <div class="ta-kpi-grid" style="margin-top:1rem">
         <div class="ta-kpi">
@@ -67,7 +80,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
           </div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Hallazgos FinOps</div>
+          <div class="ta-kpi__label">Oportunidades de ahorro</div>
           <div class="ta-kpi__value">{{ filtered().length }}</div>
         </div>
       </div>
@@ -78,7 +91,7 @@ type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
           <ta-echart [options]="barOpt()" height="240px" />
         </div>
         <div class="ta-card">
-          <h2 class="ta-card__title">Severidad FinOps</h2>
+          <h2 class="ta-card__title">Urgencia de los hallazgos</h2>
           <ta-echart [options]="pieOpt()" height="240px" />
         </div>
       </div>
@@ -110,12 +123,13 @@ export class FinopsPageComponent implements OnInit {
 
   readonly tabs: Array<{ id: FinopsTab; label: string }> = [
     { id: 'all', label: 'Todos' },
-    { id: 'rightsizing', label: 'Right-sizing' },
+    { id: 'rightsizing', label: 'Sobredimensionados' },
     { id: 'modernization', label: 'Modernización' },
-    { id: 'orphaned', label: 'Huérfanos' },
+    { id: 'orphaned', label: 'Sin uso' },
   ];
 
   readonly tab = signal<FinopsTab>('all');
+  tabModel: FinopsTab = 'all';
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -142,7 +156,7 @@ export class FinopsPageComponent implements OnInit {
     if (total === 0) {
       return 'El audit completed no tiene findings persistidos. Redeployá aggregate_audit/api y corré un audit nuevo.';
     }
-    return 'Sin findings FinOps en este audit (no hubo idle/rightsizing/orphan). Revisá Inventario o SecOps.';
+    return 'Sin oportunidades de ahorro en esta revisión. Revisá Inventario o Seguridad.';
   });
 
   readonly barOpt = computed(() =>

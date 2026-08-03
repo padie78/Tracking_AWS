@@ -63,6 +63,9 @@ jobs:
           - path: audit/aggregate_audit
             artifact: aggregate_audit
             tf_output: aggregate_audit_name
+          - path: audit/business_etl_aggregator
+            artifact: business_etl_aggregator
+            tf_output: business_etl_aggregator_name
           - path: audit/alert_dispatcher
             artifact: alert_dispatcher
             tf_output: alert_dispatcher_name
@@ -130,6 +133,9 @@ jobs:
           - path: audit/aggregate_audit
             artifact: aggregate_audit
             tf_output: aggregate_audit_name
+          - path: audit/business_etl_aggregator
+            artifact: business_etl_aggregator
+            tf_output: business_etl_aggregator_name
           - path: audit/alert_dispatcher
             artifact: alert_dispatcher
             tf_output: alert_dispatcher_name

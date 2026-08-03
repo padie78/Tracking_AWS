@@ -9,6 +9,8 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
+import { DropdownModule } from 'primeng/dropdown';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { TenantContextService } from '../../core/tenant/tenant-context.service';
 import {
@@ -29,59 +31,69 @@ type InventorySource = 'live' | 'audit';
     DatePipe,
     DecimalPipe,
     FormsModule,
+    ButtonModule,
+    DropdownModule,
     PageHeaderComponent,
     TopologyGraphComponent,
   ],
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
-        eyebrow="Assets"
-        title="Inventario"
-        subtitle="Catálogo multi-servicio y mapa topológico (salud GREEN / YELLOW / RED)."
+        eyebrow="Módulo 5"
+        title="Inventario y mapa"
+        subtitle="Lista de recursos y un mapa interactivo con estado: bien, atención o crítico."
       >
         <button
+          pButton
           type="button"
-          class="ta-btn ta-btn--ghost"
+          class="p-button-outlined"
+          icon="pi pi-refresh"
+          [label]="busy() ? 'Cargando…' : 'Actualizar'"
           [disabled]="busy()"
           (click)="refresh()"
-        >
-          {{ busy() ? 'Cargando…' : 'Actualizar' }}
-        </button>
+        ></button>
       </ta-page-header>
 
-      <div class="ta-form-grid ta-form-grid--2" style="margin-bottom: 1rem">
-        <label class="ta-field">
+      <div class="ta-form-grid ta-form-grid--2">
+        <div class="ta-field">
           <span class="ta-field__label">Fuente</span>
-          <select class="ta-select" [ngModel]="source()" (ngModelChange)="onSourceChange($event)">
-            <option value="live">En vivo (AssumeRole)</option>
-            <option value="audit">Último audit completado</option>
-          </select>
-        </label>
-        <label class="ta-field">
-          <span class="ta-field__label">Tipo</span>
-          <select class="ta-select" [ngModel]="filter()" (ngModelChange)="filter.set($event)">
-            <option value="all">Todos ({{ inventory()?.summary?.totalCount ?? 0 }})</option>
-            @for (t of typeOptions(); track t.type) {
-              <option [value]="t.type">{{ t.type }} ({{ t.count }})</option>
-            }
-          </select>
-        </label>
+          <p-dropdown
+            [options]="sourceOptions"
+            [ngModel]="source()"
+            (ngModelChange)="onSourceChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            [style]="{ width: '100%' }"
+            appendTo="body"
+          />
+        </div>
+        <div class="ta-field">
+          <span class="ta-field__label">Tipo de recurso</span>
+          <p-dropdown
+            [options]="typeDropdownOptions()"
+            [ngModel]="filter()"
+            (ngModelChange)="filter.set($event)"
+            optionLabel="label"
+            optionValue="value"
+            [style]="{ width: '100%' }"
+            [filter]="typeDropdownOptions().length > 8"
+            filterPlaceholder="Buscar tipo"
+            appendTo="body"
+          />
+        </div>
       </div>
 
       @if (error()) {
-        <div class="ta-error" style="margin-bottom:1rem">{{ error() }}</div>
+        <div class="ta-error">{{ error() }}</div>
       }
 
       @if (topology(); as topo) {
-        <div class="ta-card" style="margin-bottom:1rem">
-          <div class="ta-card__title" style="margin-bottom:0.35rem">
-            Mapa topológico
-          </div>
-          <div class="ta-meta" style="margin-bottom:0.75rem">
-            audit <code>{{ topo.auditId.slice(0, 8) }}…</code>
-            · dataset {{ topo.summary.nodeCount }} nodos / {{ topo.summary.edgeCount }} edges
-            · critical {{ topo.summary.criticalNodeCount }}
-            · Usá <strong>Resumen</strong> (por tipo) o <strong>Riesgos</strong> (solo RED/YELLOW)
+        <div class="ta-card">
+          <div class="ta-card__title">Mapa de conexiones</div>
+          <div class="ta-meta" style="margin-bottom:0.85rem">
+            revisión <code>{{ topo.auditId.slice(0, 8) }}…</code>
+            · {{ topo.summary.nodeCount }} nodos / {{ topo.summary.edgeCount }} enlaces
+            · {{ topo.summary.criticalNodeCount }} críticos
           </div>
           <ta-topology-graph [snapshot]="topo" />
         </div>
@@ -228,6 +240,11 @@ export class InventoryPageComponent implements OnInit {
   readonly inventory = signal<AccountInventoryView | null>(null);
   readonly topology = signal<TopologySnapshotView | null>(null);
 
+  readonly sourceOptions: Array<{ label: string; value: InventorySource }> = [
+    { label: 'En vivo (cuenta conectada)', value: 'live' },
+    { label: 'Última revisión completada', value: 'audit' },
+  ];
+
   readonly typeOptions = computed(() => {
     const inv = this.inventory();
     if (!inv) return [] as Array<{ type: string; count: number }>;
@@ -238,6 +255,17 @@ export class InventoryPageComponent implements OnInit {
     return [...counts.entries()]
       .map(([type, count]) => ({ type, count }))
       .sort((a, b) => a.type.localeCompare(b.type));
+  });
+
+  readonly typeDropdownOptions = computed(() => {
+    const total = this.inventory()?.summary?.totalCount ?? 0;
+    return [
+      { label: `Todos (${total})`, value: 'all' },
+      ...this.typeOptions().map((t) => ({
+        label: `${t.type} (${t.count})`,
+        value: t.type,
+      })),
+    ];
   });
 
   readonly filtered = computed(() => {

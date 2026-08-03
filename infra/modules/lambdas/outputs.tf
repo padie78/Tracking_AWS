@@ -54,6 +54,14 @@ output "aggregate_audit_name" {
   value = aws_lambda_function.aggregate_audit.function_name
 }
 
+output "business_etl_aggregator_arn" {
+  value = aws_lambda_function.business_etl_aggregator.arn
+}
+
+output "business_etl_aggregator_name" {
+  value = aws_lambda_function.business_etl_aggregator.function_name
+}
+
 output "fail_audit_arn" {
   value = aws_lambda_function.fail_audit.arn
 }

@@ -1,13 +1,18 @@
 import type { UserRole } from '../auth/user-role';
 
+/**
+ * Menú alineado a PROYECTO_VISION — módulos 1–9.
+ * Copy orientado a usuarios no técnicos (rutas/ids siguen el contrato interno).
+ */
 export type AppNavIcon =
   | 'dashboard'
-  | 'audits'
-  | 'inventory'
-  | 'finops'
   | 'secops'
-  | 'architecture'
-  | 'reports'
+  | 'compliance'
+  | 'finops'
+  | 'inventory'
+  | 'twin'
+  | 'copilot'
+  | 'playbooks'
   | 'settings';
 
 export interface AppSubnavItem {
@@ -17,86 +22,108 @@ export interface AppSubnavItem {
   description: string;
   route: string;
   icon: AppNavIcon;
+  /** Número de módulo producto (1–9). */
+  module: number;
   exact?: boolean;
 }
 
-const ADMIN_SUBNAV_ITEMS: AppSubnavItem[] = [
+const ALL_MODULES: AppSubnavItem[] = [
   {
     id: 'dashboard',
-    label: 'Inicio',
-    title: 'Dashboard',
-    description: 'Score WAF, ahorro USD y último audit',
+    module: 1,
+    label: 'Resumen',
+    title: 'Resumen general',
+    description: 'Salud de tu nube, alertas y tendencias',
     route: '/tabs/dashboard',
     icon: 'dashboard',
   },
   {
-    id: 'audits',
-    label: 'Audits',
-    title: 'Historial de audits',
-    description: 'Estado, scores y findings por ejecución',
-    route: '/tabs/audits',
-    icon: 'audits',
-  },
-  {
-    id: 'inventory',
-    label: 'Inventario',
-    title: 'Inventario AWS',
-    description: 'EC2, EBS y Elastic IP de la cuenta',
-    route: '/tabs/inventory',
-    icon: 'inventory',
-  },
-  {
-    id: 'finops',
-    label: 'FinOps',
-    title: 'FinOps',
-    description: 'Right-sizing, modernización y recursos huérfanos',
-    route: '/tabs/finops',
-    icon: 'finops',
-  },
-  {
     id: 'secops',
-    label: 'SecOps',
-    title: 'SecOps (Prowler)',
-    description: 'Findings CIS / compliance',
+    module: 2,
+    label: 'Seguridad',
+    title: 'Centro de seguridad',
+    description: 'Riesgos detectados y avisos urgentes',
     route: '/tabs/secops',
     icon: 'secops',
   },
   {
-    id: 'architecture',
-    label: 'Arquitectura',
-    title: 'Well-Architected',
-    description: 'Pilares WAF y consistencia',
-    route: '/tabs/architecture',
-    icon: 'architecture',
+    id: 'compliance',
+    module: 3,
+    label: 'Cumplimiento',
+    title: 'Cumplimiento normativo',
+    description: 'Normas, justificaciones y evidencias',
+    route: '/tabs/compliance',
+    icon: 'compliance',
   },
   {
-    id: 'reports',
-    label: 'Informe',
-    title: 'Informe de auditoría',
-    description: 'Inventario, riesgos, ahorro y reporte IA',
-    route: '/tabs/reports',
-    icon: 'reports',
+    id: 'finops',
+    module: 4,
+    label: 'Costos',
+    title: 'Control de gastos',
+    description: 'Gastos, ahorros y avisos de presupuesto',
+    route: '/tabs/finops',
+    icon: 'finops',
+  },
+  {
+    id: 'inventory',
+    module: 5,
+    label: 'Inventario',
+    title: 'Inventario y mapa',
+    description: 'Recursos y cómo se conectan entre sí',
+    route: '/tabs/inventory',
+    icon: 'inventory',
+  },
+  {
+    id: 'twin',
+    module: 6,
+    label: 'Riesgos',
+    title: 'Simulador de riesgos',
+    description: 'Qué pasaría ante un ataque probable',
+    route: '/tabs/twin',
+    icon: 'twin',
+  },
+  {
+    id: 'copilot',
+    module: 7,
+    label: 'Asistente',
+    title: 'Asistente virtual',
+    description: 'Preguntá y recibí pasos concretos',
+    route: '/tabs/copilot',
+    icon: 'copilot',
+  },
+  {
+    id: 'playbooks',
+    module: 8,
+    label: 'Acciones',
+    title: 'Acciones automáticas',
+    description: 'Arreglos en un clic y reportes de ahorro',
+    route: '/tabs/playbooks',
+    icon: 'playbooks',
   },
   {
     id: 'settings',
-    label: 'Settings',
-    title: 'Settings',
-    description: 'Cuenta AWS + canales de alerta',
+    module: 9,
+    label: 'Ajustes',
+    title: 'Ajustes de la cuenta',
+    description: 'Cuentas AWS, avisos y permisos del equipo',
     route: '/tabs/settings',
     icon: 'settings',
   },
 ];
 
-const ANALYST_SUBNAV_ITEMS: AppSubnavItem[] = ADMIN_SUBNAV_ITEMS.filter(
+/** OWNER / ADMIN (Cognito finops_admin). */
+const ADMIN_SUBNAV_ITEMS: AppSubnavItem[] = ALL_MODULES;
+
+/** DEVELOPER (Cognito analyst): sin gobernanza SaaS completa. */
+const ANALYST_SUBNAV_ITEMS: AppSubnavItem[] = ALL_MODULES.filter(
   (item) => item.id !== 'settings',
 );
 
-const VIEWER_SUBNAV_ITEMS: AppSubnavItem[] = ADMIN_SUBNAV_ITEMS.filter(
-  (item) =>
-    item.id === 'dashboard' ||
-    item.id === 'audits' ||
-    item.id === 'inventory' ||
-    item.id === 'reports',
+/** AUDITOR (Cognito viewer): lectura · vista simple. */
+const VIEWER_SUBNAV_ITEMS: AppSubnavItem[] = ALL_MODULES.filter((item) =>
+  ['dashboard', 'secops', 'compliance', 'inventory', 'playbooks'].includes(
+    item.id,
+  ),
 );
 
 export function navItemsForRole(role: UserRole): AppSubnavItem[] {
@@ -106,18 +133,20 @@ export function navItemsForRole(role: UserRole): AppSubnavItem[] {
 }
 
 export function navFocusForRole(role: UserRole): string {
-  if (role === 'finops_admin') return 'Gobernanza';
-  if (role === 'analyst') return 'Análisis';
-  return 'Lectura';
+  if (role === 'finops_admin') return 'Menú principal';
+  if (role === 'analyst') return 'Menú de análisis';
+  return 'Menú de consulta';
 }
 
-export const NAV_ICON_GLYPH: Record<AppNavIcon, string> = {
-  dashboard: '◈',
-  audits: '☰',
-  inventory: '▦',
-  finops: '$',
-  secops: '⬡',
-  architecture: '⬢',
-  reports: '▤',
-  settings: '⚙',
+/** PrimeIcons por módulo. */
+export const NAV_ICON_CLASS: Record<AppNavIcon, string> = {
+  dashboard: 'pi pi-chart-pie',
+  secops: 'pi pi-shield',
+  compliance: 'pi pi-verified',
+  finops: 'pi pi-wallet',
+  inventory: 'pi pi-sitemap',
+  twin: 'pi pi-bolt',
+  copilot: 'pi pi-comments',
+  playbooks: 'pi pi-play',
+  settings: 'pi pi-cog',
 };

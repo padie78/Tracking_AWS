@@ -1,0 +1,9 @@
+{
+  "name": "@track-aws/business-etl-aggregator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Python 3.11 Business ETL Aggregator (i18n + Bedrock + Pricing API)",
+  "scripts": {
+    "build": "bash ./scripts/package.sh"
+  }
+}

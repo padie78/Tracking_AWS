@@ -26,6 +26,7 @@ data "aws_iam_policy_document" "sfn_invoke" {
       var.load_prowler_results_arn,
       var.load_trivy_results_arn,
       var.aggregate_audit_arn,
+      var.business_etl_aggregator_arn,
       var.fail_audit_arn,
     ]
   }
@@ -372,13 +373,51 @@ resource "aws_sfn_state_machine" "audit" {
             "appsec.$"        = "$.engines[2].appsec"
           }
         }
-        Retry = local.lambda_retry
-        End   = true
+        ResultPath = "$.aggregate"
+        Retry      = local.lambda_retry
+        Next       = "BusinessEtlEnrich"
         Catch = [{
           ErrorEquals = ["States.ALL"]
           ResultPath  = "$.error"
           Next        = "MarkAuditFailed"
         }]
+      }
+      # Soft-fail: si el ETL de negocio falla, el audit TS ya quedó completed.
+      BusinessEtlEnrich = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::lambda:invoke"
+        TimeoutSeconds = 600
+        Parameters = {
+          FunctionName = var.business_etl_aggregator_arn
+          Payload = {
+            "TenantId.$"      = "$.resolve.payload.tenantId"
+            "tenantId.$"      = "$.resolve.payload.tenantId"
+            "AwsAccountId.$"  = "$.resolve.payload.accountId"
+            "accountId.$"     = "$.resolve.payload.accountId"
+            "auditId.$"       = "$.resolve.payload.auditId"
+            "correlationId.$" = "$.resolve.payload.correlationId"
+            "finops.$"        = "$.engines[0].finops"
+            "secops.$"        = "$.engines[1].secops"
+            "appsec.$"        = "$.engines[2].appsec"
+          }
+        }
+        ResultPath = "$.businessEtl"
+        Retry      = local.lambda_retry
+        End        = true
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          ResultPath  = "$.businessEtlError"
+          Next        = "BusinessEtlSoftFail"
+        }]
+      }
+      BusinessEtlSoftFail = {
+        Type = "Pass"
+        Result = {
+          ok      = false
+          warning = "business_etl_failed_soft"
+        }
+        ResultPath = "$.businessEtl"
+        End        = true
       }
       MarkAuditFailed = {
         Type     = "Task"

@@ -7,7 +7,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
 import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
@@ -22,6 +25,9 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
   encapsulation: ViewEncapsulation.None,
   imports: [
     DecimalPipe,
+    FormsModule,
+    ButtonModule,
+    SelectButtonModule,
     PageHeaderComponent,
     StatusBadgeComponent,
     TaEchartComponent,
@@ -30,13 +36,19 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
-        eyebrow="Security"
-        title="SecOps"
-        subtitle="Superficie de ataque: IAM, network abierta, storage público. Qué puede ser explotado y cómo cerrarlo."
+        eyebrow="Módulo 2"
+        title="Centro de seguridad"
+        subtitle="Problemas de acceso, red y almacenamiento que conviene corregir, ordenados por urgencia."
       >
-        <button type="button" class="ta-btn ta-btn--ghost" [disabled]="busy()" (click)="refresh()">
-          {{ busy() ? 'Cargando…' : 'Actualizar' }}
-        </button>
+        <button
+          pButton
+          type="button"
+          class="p-button-outlined"
+          icon="pi pi-refresh"
+          [label]="busy() ? 'Cargando…' : 'Actualizar'"
+          [disabled]="busy()"
+          (click)="refresh()"
+        ></button>
       </ta-page-header>
 
       @if (error()) {
@@ -45,19 +57,19 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
 
       <div class="ta-kpi-grid">
         <div class="ta-kpi">
-          <div class="ta-kpi__label">CRITICAL</div>
+          <div class="ta-kpi__label">Críticos</div>
           <div class="ta-kpi__value ta-kpi__value--danger">{{ counts().CRITICAL }}</div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">HIGH</div>
+          <div class="ta-kpi__label">Altos</div>
           <div class="ta-kpi__value ta-kpi__value--warn">{{ counts().HIGH }}</div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Attack findings</div>
+          <div class="ta-kpi__label">Problemas de seguridad</div>
           <div class="ta-kpi__value">{{ findings().length }}</div>
         </div>
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Audit</div>
+          <div class="ta-kpi__label">Última revisión</div>
           <div class="ta-kpi__value" style="font-size:0.95rem">
             @if (audit.activeAudit(); as a) {
               <ta-status-badge [status]="a.status" />
@@ -70,25 +82,21 @@ type AttackTab = 'all' | 'iam' | 'network' | 'storage' | 'other';
 
       @if (audit.activeAudit(); as a) {
         <div class="ta-meta" style="margin:0.75rem 0">
-          Audit <code>{{ a.auditId.slice(0, 8) }}…</code>
-          · {{ a.findingCount }} findings totales · cuenta {{ a.accountId }}
+          Revisión <code>{{ a.auditId.slice(0, 8) }}…</code>
+          · {{ a.findingCount }} hallazgos en total · cuenta {{ a.accountId }}
           ·
           <a class="ta-link" routerLink="/tabs/audits">cambiar en Historial</a>
         </div>
       }
 
-      <div class="ta-tabs" style="margin-top:1rem">
-        @for (t of tabs; track t.id) {
-          <button
-            type="button"
-            class="ta-tabs__btn"
-            [class.active]="tab() === t.id"
-            (click)="tab.set(t.id)"
-          >
-            {{ t.label }}
-          </button>
-        }
-      </div>
+      <p-selectButton
+        [options]="tabs"
+        [(ngModel)]="tabModel"
+        optionLabel="label"
+        optionValue="id"
+        [style]="{ width: '100%' }"
+        (ngModelChange)="tab.set($event)"
+      />
 
       <div class="ta-card" style="margin-top:1rem">
         <h2 class="ta-card__title">Distribución por severidad</h2>
@@ -124,12 +132,13 @@ export class SecopsPageComponent implements OnInit {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly tab = signal<AttackTab>('all');
+  tabModel: AttackTab = 'all';
 
   readonly tabs: Array<{ id: AttackTab; label: string }> = [
     { id: 'all', label: 'Todos' },
-    { id: 'iam', label: 'IAM / identidad' },
-    { id: 'network', label: 'Network' },
-    { id: 'storage', label: 'Storage' },
+    { id: 'iam', label: 'Accesos e identidad' },
+    { id: 'network', label: 'Red' },
+    { id: 'storage', label: 'Almacenamiento' },
     { id: 'other', label: 'Otros' },
   ];
 
@@ -163,15 +172,15 @@ export class SecopsPageComponent implements OnInit {
     const a = this.audit.activeAudit();
     const total = this.audit.findings().length;
     if (!a) {
-      return 'No hay audit para esta cuenta. Ejecutá uno desde Audits o Dashboard.';
+      return 'Todavía no hay una revisión para esta cuenta. Iniciá una desde Resumen.';
     }
     if (a.status !== 'completed') {
-      return `El audit activo está en «${a.status}». Esperá a completed o elegí uno terminado en Historial.`;
+      return `La revisión activa está en curso («${a.status}»). Esperá a que termine o elegí otra en Historial.`;
     }
     if (total === 0) {
-      return 'Sin findings persistidos. Redeployá aggregate_audit (fallback SecOps) + api y corré un audit nuevo.';
+      return 'Esta revisión no dejó hallazgos guardados. Probá iniciar una nueva desde Resumen.';
     }
-    return 'Sin findings SecOps en este audit (Prowler vacío y fallback sin hits). Revisá FinOps o el Informe.';
+    return 'No hay problemas de seguridad en esta revisión. Revisá Costos o el Informe.';
   });
 
   attackBucket(

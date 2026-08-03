@@ -91,6 +91,7 @@ module "orchestration" {
   load_trivy_results_arn      = module.lambdas.load_trivy_results_arn
   fail_audit_arn              = module.lambdas.fail_audit_arn
   aggregate_audit_arn         = module.lambdas.aggregate_audit_arn
+  business_etl_aggregator_arn = module.lambdas.business_etl_aggregator_arn
   prowler_cluster_arn         = module.prowler_fargate.cluster_arn
   prowler_task_definition_arn = module.prowler_fargate.task_definition_arn
   trivy_task_definition_arn   = module.prowler_fargate.trivy_task_definition_arn

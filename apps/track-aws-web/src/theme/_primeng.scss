@@ -1,0 +1,186 @@
+/* PrimeNG ↔ tokens Track AWS (lara-light-teal base) */
+:root {
+  --primary-color: var(--ta-accent);
+  --primary-color-text: #ffffff;
+  --surface-ground: var(--ta-bg);
+  --surface-section: var(--ta-bg);
+  --surface-card: var(--ta-bg-elevated);
+  --surface-overlay: #ffffff;
+  --surface-border: var(--ta-border);
+  --surface-hover: var(--ta-bg-panel);
+  --text-color: var(--ta-text);
+  --text-color-secondary: var(--ta-text-muted);
+  --focus-ring: 0 0 0 3px var(--ta-focus);
+  --border-radius: var(--ta-radius-sm);
+  --font-family: var(--ta-font-body);
+}
+
+.p-component {
+  font-family: var(--ta-font-body);
+}
+
+.p-inputtext,
+.p-dropdown,
+.p-password,
+.p-password-input {
+  border-radius: var(--ta-radius-sm) !important;
+  font-size: 0.95rem;
+}
+
+.p-inputtext {
+  padding: 0.75rem 0.9rem;
+  min-height: 2.75rem;
+  border-color: var(--ta-border);
+  background: var(--ta-bg-input);
+  color: var(--ta-text);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.p-inputtext:enabled:hover {
+  border-color: var(--ta-border-strong);
+}
+
+.p-inputtext:enabled:focus {
+  border-color: var(--ta-accent);
+  box-shadow: 0 0 0 3px var(--ta-focus);
+}
+
+.p-float-label label,
+.p-floatlabel label {
+  color: var(--ta-text-muted);
+}
+
+.p-dropdown {
+  border-color: var(--ta-border);
+  background: var(--ta-bg-input);
+  min-height: 2.75rem;
+  align-items: center;
+}
+
+.p-dropdown:not(.p-disabled):hover {
+  border-color: var(--ta-border-strong);
+}
+
+.p-dropdown:not(.p-disabled).p-focus {
+  border-color: var(--ta-accent);
+  box-shadow: 0 0 0 3px var(--ta-focus);
+}
+
+.p-dropdown .p-dropdown-label {
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+.p-dropdown-panel {
+  border-radius: var(--ta-radius-sm);
+  border-color: var(--ta-border);
+  box-shadow: var(--ta-shadow);
+}
+
+.p-dropdown-item {
+  padding: 0.65rem 0.9rem;
+  font-size: 0.92rem;
+}
+
+.p-button {
+  font-family: var(--ta-font-body);
+  font-weight: 650;
+  border-radius: var(--ta-radius-pill) !important;
+  padding: 0.65rem 1.15rem;
+  min-height: 2.6rem;
+  background: var(--ta-accent);
+  border-color: var(--ta-accent);
+}
+
+.p-button:enabled:hover {
+  background: var(--ta-accent-hover);
+  border-color: var(--ta-accent-hover);
+}
+
+.p-button.p-button-outlined,
+.p-button.p-button-text,
+.p-button.p-button-secondary {
+  border-radius: var(--ta-radius-pill) !important;
+}
+
+.p-button.p-button-outlined {
+  background: #fff;
+  color: var(--ta-text);
+  border-color: var(--ta-border);
+}
+
+.p-button.p-button-outlined:enabled:hover {
+  background: var(--ta-bg-panel);
+  border-color: var(--ta-border-strong);
+  color: var(--ta-text);
+}
+
+.p-button.p-button-sm {
+  min-height: 2.1rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+}
+
+.p-button.p-button-icon-only {
+  width: 2.6rem;
+  padding: 0;
+}
+
+.p-selectbutton .p-button {
+  border-radius: var(--ta-radius-pill) !important;
+  background: transparent;
+  border-color: transparent;
+  color: var(--ta-text-muted);
+  box-shadow: none;
+}
+
+.p-selectbutton .p-button.p-highlight {
+  background: #fff;
+  color: var(--ta-text);
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.p-selectbutton {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.22rem;
+  border: 1px solid var(--ta-border);
+  border-radius: var(--ta-radius-pill);
+  background: var(--ta-bg-panel);
+}
+
+.p-password,
+.p-password-input {
+  width: 100%;
+}
+
+.p-password input {
+  width: 100%;
+}
+
+.p-inputtext.p-invalid,
+.p-dropdown.p-invalid {
+  border-color: color-mix(in srgb, var(--ta-danger) 70%, transparent);
+}
+
+/* Header account picker */
+.ta-header__search .p-dropdown {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+  min-height: 2.2rem;
+}
+
+.ta-header__search .p-dropdown .p-dropdown-label {
+  padding: 0.35rem 0.25rem;
+}
+
+.ta-header__search .p-dropdown .p-dropdown-trigger {
+  width: 2rem;
+}

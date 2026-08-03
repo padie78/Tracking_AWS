@@ -7,6 +7,7 @@ import {
   inject,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
 import type { EChartsCoreOption } from 'echarts/core';
 import { TenantContextService } from '../../core/tenant/tenant-context.service';
 import { AuditLiveService } from '../../core/audit/audit-live.service';
@@ -29,6 +30,7 @@ import {
   imports: [
     DecimalPipe,
     RouterLink,
+    ButtonModule,
     TaEchartComponent,
     PageHeaderComponent,
     AuditProgressComponent,
@@ -37,21 +39,26 @@ import {
   template: `
     <section class="ta-page ta-page--wide">
       <ta-page-header
-        eyebrow="Overview"
-        title="Dashboard"
-        subtitle="Score Well-Architected, ahorro proyectado y pipeline live del último audit."
+        eyebrow="Módulo 1"
+        title="Resumen general"
+        subtitle="Cómo está tu nube hoy: puntuación, ahorro estimado y avisos importantes."
       >
         <button
+          pButton
           type="button"
-          class="ta-btn"
+          icon="pi pi-play"
+          [label]="audit.starting() ? 'Iniciando…' : audit.isRunning() ? 'Revisando…' : 'Iniciar revisión'"
           [disabled]="audit.starting() || !canStart()"
           (click)="start()"
-        >
-          {{ audit.starting() ? 'Iniciando…' : audit.isRunning() ? 'Auditando…' : 'Iniciar audit' }}
-        </button>
-        <button type="button" class="ta-btn ta-btn--ghost" (click)="refresh()">
-          Refrescar
-        </button>
+        ></button>
+        <button
+          pButton
+          type="button"
+          class="p-button-outlined"
+          icon="pi pi-refresh"
+          label="Actualizar"
+          (click)="refresh()"
+        ></button>
       </ta-page-header>
 
       @if (audit.error()) {
@@ -98,7 +105,7 @@ import {
 
       <div class="ta-kpi-grid" style="margin-top:1rem">
         <div class="ta-kpi">
-          <div class="ta-kpi__label">Score global</div>
+          <div class="ta-kpi__label">Puntuación general</div>
           <div class="ta-kpi__value">{{ score() | number: '1.0-0' }}</div>
         </div>
         <div class="ta-kpi">
@@ -119,11 +126,11 @@ import {
 
       <div class="ta-chart-grid">
         <div class="ta-card">
-          <h2 class="ta-card__title">Score WAF</h2>
+          <h2 class="ta-card__title">Puntuación de seguridad</h2>
           <ta-echart [options]="gaugeOpt()" height="220px" />
         </div>
         <div class="ta-card">
-          <h2 class="ta-card__title">Pilares Well-Architected</h2>
+          <h2 class="ta-card__title">Áreas de buenas prácticas</h2>
           <ta-echart [options]="radarOpt()" height="220px" />
         </div>
         <div class="ta-card">
@@ -137,12 +144,12 @@ import {
       </div>
 
       <div class="ta-card" style="margin-top:1rem">
-        <h2 class="ta-card__title">Tendencia de audits</h2>
+        <h2 class="ta-card__title">Tendencia de las últimas revisiones</h2>
         <ta-echart [options]="trendOpt()" height="260px" />
       </div>
 
       <div class="ta-card" style="margin-top:1rem">
-        <h2 class="ta-card__title">Acción ahora</h2>
+        <h2 class="ta-card__title">Qué conviene hacer ahora</h2>
         <ul class="ta-action-list">
           @for (f of topActions(); track f.findingId) {
             <li>
@@ -153,13 +160,15 @@ import {
               </div>
             </li>
           } @empty {
-            <li class="ta-meta">Sin hallazgos prioritarios. Ejecutá un audit.</li>
+            <li class="ta-meta">Sin hallazgos prioritarios. Iniciá una revisión.</li>
           }
         </ul>
         <div class="ta-inline-links">
-          <a routerLink="/tabs/secops">SecOps</a>
-          <a routerLink="/tabs/finops">FinOps</a>
-          <a routerLink="/tabs/architecture">Arquitectura</a>
+          <a routerLink="/tabs/secops">Seguridad</a>
+          <a routerLink="/tabs/finops">Costos</a>
+          <a routerLink="/tabs/inventory">Inventario</a>
+          <a routerLink="/tabs/compliance">Cumplimiento</a>
+          <a routerLink="/tabs/playbooks">Acciones</a>
         </div>
       </div>
     </section>
@@ -274,14 +283,14 @@ export class DashboardPageComponent implements OnInit {
   }
 
   progressTitle(): string {
-    if (this.audit.isRunning()) return 'Auditoría en curso';
-    if (this.audit.displayStatus() === 'completed') return 'Último audit completado';
-    if (this.audit.displayStatus() === 'failed') return 'Último audit falló';
-    return 'Listo para auditar';
+    if (this.audit.isRunning()) return 'Revisión en curso';
+    if (this.audit.displayStatus() === 'completed') return 'Última revisión completada';
+    if (this.audit.displayStatus() === 'failed') return 'La última revisión falló';
+    return 'Listo para revisar';
   }
 
   progressEyebrow(): string {
-    return this.audit.isRunning() ? 'Live · Step Functions' : 'Pipeline';
+    return this.audit.isRunning() ? 'En vivo' : 'Progreso';
   }
 
   async start(): Promise<void> {

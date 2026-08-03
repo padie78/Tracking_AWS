@@ -1,6 +1,11 @@
 @import './theme/global';
 @import './theme/forms';
 
+@import 'primeng/resources/themes/lara-light-teal/theme.css';
+@import 'primeng/resources/primeng.min.css';
+@import 'primeicons/primeicons.css';
+@import './theme/primeng';
+
 @import '@ionic/angular/css/core.css';
 @import '@ionic/angular/css/normalize.css';
 @import '@ionic/angular/css/structure.css';
@@ -26,9 +31,15 @@ app-root {
 
 body {
   font-family: var(--ta-font-body);
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--ta-text);
-  background: var(--ta-bg);
+  background:
+    radial-gradient(1200px 480px at 8% -10%, color-mix(in srgb, var(--ta-accent) 10%, transparent), transparent 60%),
+    radial-gradient(900px 420px at 100% 0%, color-mix(in srgb, var(--ta-accent-2) 7%, transparent), transparent 55%),
+    var(--ta-bg);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /*
@@ -80,10 +91,20 @@ app-auth-callback-page {
 
 h1,
 h2,
+h3,
 .ta-brand,
 .ta-header__title,
-.ta-page h1 {
+.ta-page h1,
+.ta-card__title,
+.ta-steps__title {
   font-family: var(--ta-font-display);
+  letter-spacing: -0.025em;
+}
+
+code,
+.ta-mono {
+  font-family: var(--ta-font-mono);
+  font-size: 0.86em;
 }
 
 /* —— OpenRouter-like workspace shell —— */
@@ -100,13 +121,13 @@ h2,
 .ta-header {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(240px, 1fr) auto;
   align-items: center;
-  gap: 1rem;
-  padding: 0.7rem 1.15rem;
+  gap: 1.1rem;
+  padding: 0.85rem var(--ta-main-pad-x);
   background: var(--ta-header);
   border-bottom: 1px solid var(--ta-border);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   z-index: 40;
 }
 
@@ -197,8 +218,8 @@ h2,
 
 .ta-brand {
   font-weight: 700;
-  letter-spacing: -0.02em;
-  font-size: 1.05rem;
+  letter-spacing: -0.035em;
+  font-size: 1.15rem;
   color: var(--ta-text);
   text-decoration: none;
   white-space: nowrap;
@@ -220,17 +241,17 @@ h2,
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: var(--ta-nav-width) minmax(0, 1fr);
   width: 100%;
 }
 
 .ta-shell__nav {
   border-right: 1px solid var(--ta-border);
   background: var(--ta-sidebar);
-  padding: 1rem 0.75rem;
+  padding: 1.15rem 0.85rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
@@ -238,10 +259,10 @@ h2,
 }
 
 .ta-shell__nav-section {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.68rem;
+  padding: 0.2rem 0.85rem 0.45rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ta-text-muted);
 }
@@ -257,8 +278,8 @@ h2,
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 1.35rem 1.5rem 2rem;
-  background: var(--ta-bg);
+  padding: var(--ta-main-pad-y) var(--ta-main-pad-x) var(--ta-space-7);
+  background: transparent;
 }
 
 .ta-shell__main > * {
@@ -408,15 +429,15 @@ h2,
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.3rem;
   flex: 1;
 }
 
 .ta-nav-list a {
   display: flex;
   align-items: flex-start;
-  gap: 0.7rem;
-  padding: 0.7rem 0.75rem;
+  gap: 0.8rem;
+  padding: 0.8rem 0.85rem;
   border-radius: var(--ta-radius-sm);
   color: var(--ta-text-muted);
   text-decoration: none;
@@ -424,32 +445,51 @@ h2,
   transition:
     background 140ms ease,
     border-color 140ms ease,
-    color 140ms ease;
+    color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .ta-nav-list__icon {
-  width: 1.1rem;
-  text-align: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ta-bg-panel);
   color: var(--ta-text-muted);
-  opacity: 0.9;
-  margin-top: 0.1rem;
+  font-size: 0.85rem;
+  margin-top: 0.05rem;
 }
 
 .ta-nav-list__text {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.18rem;
   min-width: 0;
 }
 
 .ta-nav-list__label {
   color: inherit;
-  font-weight: 600;
-  font-size: 0.92rem;
+  font-weight: 650;
+  font-size: 0.94rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  line-height: 1.25;
+}
+
+.ta-nav-list__mod {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ta-accent);
+  opacity: 0.85;
+  flex-shrink: 0;
 }
 
 .ta-nav-list__desc {
-  font-size: 0.72rem;
-  line-height: 1.3;
+  font-size: 0.74rem;
+  line-height: 1.35;
   color: var(--ta-text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -462,63 +502,78 @@ h2,
   background: var(--ta-bg-panel);
 }
 
+.ta-nav-list a:hover .ta-nav-list__icon {
+  color: var(--ta-accent);
+  background: color-mix(in srgb, var(--ta-accent) 12%, #fff);
+}
+
 .ta-nav-list a.active {
   color: var(--ta-text);
-  background: color-mix(in srgb, var(--ta-accent) 8%, #fff);
-  border-color: color-mix(in srgb, var(--ta-accent) 22%, var(--ta-border));
+  background: color-mix(in srgb, var(--ta-accent) 9%, #fff);
+  border-color: color-mix(in srgb, var(--ta-accent) 24%, var(--ta-border));
+  box-shadow: var(--ta-shadow-sm);
 }
 
 .ta-nav-list a.active .ta-nav-list__icon {
-  color: var(--ta-accent);
+  color: #fff;
+  background: var(--ta-accent);
 }
 
 .ta-page,
 .ta-page--wide {
   max-width: none;
   width: 100%;
+  display: grid;
+  gap: var(--ta-page-gap);
 }
 
 .ta-page__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--ta-space-4);
-  margin-bottom: 1.25rem;
+  gap: var(--ta-space-5);
+  margin-bottom: 0;
   width: 100%;
+  padding-bottom: 0.15rem;
 }
 
 .ta-page h1 {
-  margin: 0 0 0.35rem;
-  font-size: clamp(1.35rem, 2vw, 1.75rem);
-  letter-spacing: -0.03em;
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.45rem, 2.1vw, 1.9rem);
+  letter-spacing: -0.035em;
   font-weight: 700;
+  line-height: 1.15;
+  color: var(--ta-text);
 }
 
 .ta-page p {
   margin: 0;
   color: var(--ta-text-muted);
-  max-width: 52rem;
+  max-width: 44rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
 }
 
 .ta-card {
   background: var(--ta-bg-elevated);
   border: 1px solid var(--ta-border);
   border-radius: var(--ta-radius);
-  padding: 1.15rem 1.2rem;
-  box-shadow: none;
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--ta-shadow-sm);
   width: 100%;
   max-width: 100%;
 }
 
 .ta-card--flat {
   background: var(--ta-bg-elevated);
+  box-shadow: none;
 }
 
 .ta-card__title {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
+  margin: 0 0 0.85rem;
+  font-size: 1.02rem;
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .ta-kpi-grid {
@@ -532,19 +587,25 @@ h2,
   background: var(--ta-bg-elevated);
   border: 1px solid var(--ta-border);
   border-radius: var(--ta-radius);
-  padding: 1rem 1.05rem;
+  padding: 1.1rem 1.15rem;
+  box-shadow: var(--ta-shadow-sm);
 }
 
 .ta-kpi__label {
   color: var(--ta-text-muted);
-  font-size: 0.8rem;
-  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
 }
 
 .ta-kpi__value {
-  font-size: 1.75rem;
+  font-family: var(--ta-font-display);
+  font-size: 1.85rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 
 .ta-kpi__value--accent {
@@ -986,29 +1047,29 @@ h2,
 .ta-auth__card {
   position: relative;
   z-index: 1;
-  width: min(440px, 100%);
+  width: min(460px, 100%);
   max-width: 100%;
   background: var(--ta-bg-elevated);
   border: 1px solid var(--ta-border);
-  border-radius: 16px;
-  padding: var(--ta-space-6) var(--ta-space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--ta-space-4);
+  border-radius: calc(var(--ta-radius) + 4px);
+  padding: 2rem 1.75rem 1.65rem;
   box-shadow: var(--ta-shadow);
+  display: grid;
+  gap: 1.25rem;
 }
 
 .ta-auth__card h1 {
   margin: 0;
-  font-size: 1.85rem;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.65rem, 3vw, 1.95rem);
+  letter-spacing: -0.035em;
+  font-weight: 700;
 }
 
 .ta-auth__lead {
-  margin: -0.35rem 0 0;
+  margin: 0.35rem 0 0;
   color: var(--ta-text-muted);
   font-size: 0.95rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .ta-auth__footer {

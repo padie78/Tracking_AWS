@@ -1,7 +1,8 @@
 # Komiser Fargate — integración Track_AWS
 #
 # Komiser CLI **no** tiene `komiser dashboard --export-json`.
-# El entrypoint hace: AssumeRole → `komiser start` → export HTTP local → S3 → exit 0.
+# El entrypoint hace: AssumeRole → `komiser start` → `POST /resources/search` → S3 → exit 0.
+# (No usar `/global/resources`: es breakdown del dashboard, no inventario.)
 #
 # Build/push:
 #   ECR_URL=$(cd infra && terraform output -raw komiser_ecr_repository_url) \

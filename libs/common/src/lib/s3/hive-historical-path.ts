@@ -12,7 +12,8 @@ export type HistoricalEngine =
   | 'cloudquery'
   | 'prowler'
   | 'trivy'
-  | 'infracost';
+  | 'infracost'
+  | 'komiser';
 
 export function formatHiveTimestamp(date: Date = new Date()): string {
   const y = date.getUTCFullYear();

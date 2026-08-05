@@ -69,6 +69,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "has_finops": isinstance(event.get("finops"), dict),
             "has_secops": isinstance(event.get("secops"), dict),
             "has_appsec": isinstance(event.get("appsec"), dict),
+            "has_komiser": isinstance(event.get("komiser"), dict),
         },
     )
     result = run_pipeline(event)  # type: ignore[arg-type]

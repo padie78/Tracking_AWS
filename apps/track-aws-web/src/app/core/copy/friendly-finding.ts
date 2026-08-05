@@ -425,6 +425,22 @@ const RULES: Rule[] = [
   },
   {
     domains: ['finops'],
+    test: (h) => /komiser|cost_generic/.test(h),
+    es: {
+      headline: 'Gasto detectado en el inventario',
+      why: 'Komiser midió costo mensual en este recurso; conviene validar owners y si sigue aportando valor.',
+      action: 'Revisá tags/owners, rightsizing o apagado si está idle; abrí el link de consola si está disponible.',
+      area: 'Inventario',
+    },
+    en: {
+      headline: 'Spend detected in inventory',
+      why: 'Komiser measured monthly cost on this resource; validate owners and whether it still delivers value.',
+      action: 'Review tags/owners, rightsizing, or stop if idle; open the console link when available.',
+      area: 'Inventory',
+    },
+  },
+  {
+    domains: ['finops'],
     test: (h) =>
       /serverless.?waste|lambda.*idle|idle.*lambda|unused.*lambda|nat.?gateway|orphan|waste|infracost|saving|ahorro|cost.?optim/.test(
         h,

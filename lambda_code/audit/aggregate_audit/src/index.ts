@@ -19,6 +19,7 @@ import {
   estimateInfracostFromInventory,
   HistoricalParquetWriter,
   INFRACOST_PARQUET_SCHEMA,
+  KOMISER_PARQUET_SCHEMA,
   PROWLER_PARQUET_SCHEMA,
   ProwlerSecurityEngine,
   TRIVY_PARQUET_SCHEMA,
@@ -104,6 +105,44 @@ async function loadFindingsFromS3(
     return parsed.findings ?? [];
   } catch (err) {
     console.error('loadFindingsFromS3 failed', {
+      bucket,
+      key,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+type KomiserResourceRow = {
+  resourceId?: string;
+  name?: string;
+  service?: string;
+  region?: string;
+  provider?: string;
+  cost?: number;
+  link?: string;
+};
+
+async function loadKomiserResourcesFromS3(
+  ref: EngineArtifactRef | undefined,
+  fallbackKey: string,
+): Promise<KomiserResourceRow[]> {
+  const bucket =
+    ref?.sourceBucket ?? process.env['PROWLER_FINDINGS_BUCKET'] ?? '';
+  const key = ref?.sourceKey ?? fallbackKey;
+  if (!bucket || !key) return [];
+
+  try {
+    const result = await s3.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const raw = (await result.Body?.transformToString('utf-8')) ?? '';
+    const parsed = JSON.parse(raw) as {
+      resources?: KomiserResourceRow[];
+    };
+    return Array.isArray(parsed.resources) ? parsed.resources : [];
+  } catch (err) {
+    console.error('loadKomiserResourcesFromS3 failed', {
       bucket,
       key,
       message: err instanceof Error ? err.message : String(err),
@@ -283,6 +322,11 @@ export const handler: Handler<Input> = async (event) => {
     warning: event.komiser?.warning,
   });
 
+  const komiserResources = await loadKomiserResourcesFromS3(
+    event.komiser,
+    `tenants/${event.tenantId}/audits/${event.auditId}/komiser/findings.json`,
+  );
+
   const securityScore = scoreFromFindings(
     [...secopsFindings, ...appsecFindings],
     'secops',
@@ -437,6 +481,7 @@ export const handler: Handler<Input> = async (event) => {
     secopsFindings,
     appsecFindings,
     infracostLines,
+    komiserResources,
   });
 
   let hotRetention: {
@@ -471,6 +516,7 @@ export const handler: Handler<Input> = async (event) => {
     secopsFindingCount: secopsFindings.length,
     appsecFindingCount: appsecFindings.length,
     infracostLineCount: infracostLines.length,
+    komiserResourceCount: komiserResources.length,
     historicalParquet: historicalUris,
     hotRetention,
   };
@@ -484,15 +530,18 @@ async function writeHistoricalParquetArtifacts(input: {
   secopsFindings: SerializedFinding[];
   appsecFindings: SerializedFinding[];
   infracostLines: InfracostLineItem[];
+  komiserResources: KomiserResourceRow[];
 }): Promise<{
   prowler: string | null;
   trivy: string | null;
   infracost: string | null;
+  komiser: string | null;
 }> {
   const out = {
     prowler: null as string | null,
     trivy: null as string | null,
     infracost: null as string | null,
+    komiser: null as string | null,
   };
 
   if (!process.env['DATA_LAKE_BUCKET_NAME']) {
@@ -577,6 +626,33 @@ async function writeHistoricalParquetArtifacts(input: {
     out.infracost = infracost.s3Uri;
   } catch (err) {
     console.error('infracost parquet write failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const komiser = await writer.write({
+      ...base,
+      engine: 'komiser',
+      schema: KOMISER_PARQUET_SCHEMA,
+      rows: input.komiserResources
+        .filter((r) => {
+          const id = String(r.resourceId ?? '');
+          return Boolean(id) && !id.startsWith('OLD_');
+        })
+        .map((r) => ({
+          resource_id: String(r.resourceId ?? ''),
+          name: String(r.name ?? ''),
+          service: String(r.service ?? ''),
+          region: String(r.region ?? ''),
+          provider: String(r.provider ?? 'AWS'),
+          monthly_cost_usd: Number(r.cost ?? 0),
+          link: String(r.link ?? ''),
+        })),
+    });
+    out.komiser = komiser.s3Uri;
+  } catch (err) {
+    console.error('komiser parquet write failed', {
       message: err instanceof Error ? err.message : String(err),
     });
   }

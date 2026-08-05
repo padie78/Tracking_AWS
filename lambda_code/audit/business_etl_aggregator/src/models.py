@@ -88,6 +88,7 @@ class AggregatorEvent(TypedDict, total=False):
     secops: dict[str, Any]
     finops: dict[str, Any]
     appsec: dict[str, Any]
+    komiser: dict[str, Any]
     # Credenciales de la cuenta cliente (SFN → AssumeRole para telemetría)
     roleArn: str
     externalId: str

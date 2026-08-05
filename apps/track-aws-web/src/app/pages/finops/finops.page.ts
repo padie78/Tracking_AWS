@@ -16,6 +16,7 @@ import { PageHeaderComponent } from '../../ui/layout/page-header.component';
 import { StatusBadgeComponent } from '../../ui/audit/status-badge.component';
 import { TaEchartComponent } from '../../ui/charts/ta-echart.component';
 import {
+  namedDonutOption,
   savingsBarOption,
   smoothLineOption,
   verticalColumnOption,
@@ -28,7 +29,12 @@ import {
 import { UiLocaleService } from '../../core/i18n/ui-locale.service';
 import type { AuditFindingView } from '../../services/scan.service';
 
-type FinopsTab = 'all' | 'rightsizing' | 'modernization' | 'orphaned';
+type FinopsTab =
+  | 'all'
+  | 'rightsizing'
+  | 'modernization'
+  | 'orphaned'
+  | 'inventory';
 type FinopsArea = Exclude<FinopsTab, 'all'>;
 
 type FinopsCard = {
@@ -37,6 +43,26 @@ type FinopsCard = {
   bucket: FinopsArea;
   service: string;
 };
+
+/** Findings materializados por Business ETL desde Komiser (checkId komiser-*). */
+function isKomiserFinding(f: FindingLike): boolean {
+  const check = (f.checkId ?? '').toLowerCase();
+  return check.startsWith('komiser-') || check.includes('komiser');
+}
+
+/** Servicio AWS desde checkId `komiser-ecr-cost` o friendly area. */
+function komiserServiceOf(f: FindingLike, fallback = 'AWS'): string {
+  const check = (f.checkId ?? '').toLowerCase();
+  const m = /^komiser-(.+)-cost$/.exec(check);
+  if (m?.[1]) {
+    return m[1].replace(/-/g, ' ').toUpperCase();
+  }
+  const area = (f.friendlyArea ?? f.friendlyAreaEs ?? '').trim();
+  if (area && !/^inventario|inventory|costos|cost$/i.test(area)) {
+    return area.split('·')[0]!.trim();
+  }
+  return fallback;
+}
 
 /** Formato de ahorro: micro-montos no deben verse como $0.00. */
 function formatSavingsUsd(amount: number): string {
@@ -74,17 +100,16 @@ function isFinopsFinding(f: FindingLike): boolean {
 
   if ((f.estimatedMonthlySavingsUsd ?? 0) > 0) return true;
 
+  if (isKomiserFinding(f) || /komiser/.test(hay)) return true;
+
   return /rightsiz|orphan|unattached|eip|infracost|waste|retention|moderniz|ebs_unused|idle|underutil|sobredimension|graviton|log_group|serverless_waste|cost_/.test(
     hay,
   );
 }
 
-function finopsBucket(
-  category: string,
-  title: string,
-  checkId: string | null,
-): FinopsArea {
-  const hay = `${category} ${title} ${checkId ?? ''}`.toLowerCase();
+function finopsBucket(f: FindingLike): FinopsArea {
+  if (isKomiserFinding(f)) return 'inventory';
+  const hay = `${f.category} ${f.title} ${f.checkId ?? ''}`.toLowerCase();
   if (
     /orphan|unattached|unused|idle|eip|huerf|sin uso|ebs_unused|cost_ebs|log_group|retention|serverless_waste|waste/.test(
       hay,
@@ -216,6 +241,19 @@ function finopsBucket(
         </div>
         <div class="ta-kpi ta-kpi--compact">
           <div class="ta-kpi__label">
+            {{ locale.isEn() ? 'Inventory (Komiser)' : 'Inventario (Komiser)' }}
+          </div>
+          <div class="ta-kpi__value">{{ bucketCounts().inventory }}</div>
+          <div class="ta-kpi__hint">
+            {{ formatMoney(bucketSavings().inventory) }}/{{
+              locale.isEn() ? 'mo' : 'mes'
+            }}
+            · {{ komiserServiceCount() }}
+            {{ locale.isEn() ? 'services' : 'servicios' }}
+          </div>
+        </div>
+        <div class="ta-kpi ta-kpi--compact">
+          <div class="ta-kpi__label">
             {{ locale.isEn() ? 'Priced items' : 'Con precio \$' }}
           </div>
           <div class="ta-kpi__value">{{ withSavingsCount() }}</div>
@@ -252,7 +290,7 @@ function finopsBucket(
         (ngModelChange)="tab.set($event)"
       />
 
-      <!-- Charts: 3 clear visuals -->
+      <!-- Charts: savings + Komiser inventory when present -->
       <div class="ta-dash-section-head">
         <h2 class="ta-card__title" style="margin:0">
           {{ locale.isEn() ? 'Savings snapshot' : 'Panorama de ahorro' }}
@@ -285,6 +323,37 @@ function finopsBucket(
           <ta-echart [options]="cumulativeLineOpt()" height="260px" />
         </div>
       </div>
+
+      @if (komiserCards().length > 0 && (tab() === 'all' || tab() === 'inventory')) {
+        <div class="ta-dash-section-head">
+          <h2 class="ta-card__title" style="margin:0">
+            {{
+              locale.isEn()
+                ? 'Inventory spend (Komiser)'
+                : 'Gasto del inventario (Komiser)'
+            }}
+          </h2>
+          <span class="ta-meta">
+            {{ komiserCards().length }}
+            {{ locale.isEn() ? 'priced resources' : 'recursos con precio' }}
+            · {{ formatMoney(komiserSpend()) }} USD/{{ locale.isEn() ? 'mo' : 'mes' }}
+          </span>
+        </div>
+        <div class="ta-chart-grid ta-chart-grid--finops">
+          <div class="ta-card">
+            <h2 class="ta-card__title">
+              {{ locale.isEn() ? 'Spend by service' : 'Gasto por servicio' }}
+            </h2>
+            <ta-echart [options]="komiserServiceDonutOpt()" height="280px" />
+          </div>
+          <div class="ta-card ta-card--chart-wide">
+            <h2 class="ta-card__title">
+              {{ locale.isEn() ? 'Top inventory costs' : 'Mayores costos del inventario' }}
+            </h2>
+            <ta-echart [options]="komiserTopBarOpt()" height="280px" />
+          </div>
+        </div>
+      }
 
       <div class="ta-card" style="margin-top:1rem">
         <h2 class="ta-card__title">
@@ -388,6 +457,7 @@ export class FinopsPageComponent implements OnInit {
       { id: 'rightsizing' as const, label: en ? 'Rightsizing' : 'Sobredimensionados' },
       { id: 'modernization' as const, label: en ? 'Modernization' : 'Modernización' },
       { id: 'orphaned' as const, label: en ? 'Idle / orphaned' : 'Sin uso' },
+      { id: 'inventory' as const, label: en ? 'Inventory' : 'Inventario' },
     ];
   });
 
@@ -404,11 +474,15 @@ export class FinopsPageComponent implements OnInit {
       ) {
         continue;
       }
+      const bucket = finopsBucket(f as FindingLike);
       rows.push({
         finding: f,
         ui,
-        bucket: finopsBucket(f.category, f.title, f.checkId),
-        service: ui.serviceLabel || ui.areaLabel.split('·')[0]?.trim() || 'AWS',
+        bucket,
+        service:
+          bucket === 'inventory'
+            ? komiserServiceOf(f as FindingLike, ui.serviceLabel || 'AWS')
+            : ui.serviceLabel || ui.areaLabel.split('·')[0]?.trim() || 'AWS',
       });
     }
     rows.sort(
@@ -425,6 +499,22 @@ export class FinopsPageComponent implements OnInit {
     return this.cards().filter((c) => c.bucket === t);
   });
 
+  readonly komiserCards = computed(() =>
+    this.cards().filter((c) => c.bucket === 'inventory'),
+  );
+
+  readonly komiserSpend = computed(() =>
+    this.komiserCards().reduce(
+      (acc, c) => acc + (c.finding.estimatedMonthlySavingsUsd || 0),
+      0,
+    ),
+  );
+
+  readonly komiserServiceCount = computed(() => {
+    const set = new Set(this.komiserCards().map((c) => c.service));
+    return set.size;
+  });
+
   readonly filteredSavings = computed(() =>
     this.filteredCards().reduce(
       (acc, c) => acc + (c.finding.estimatedMonthlySavingsUsd || 0),
@@ -435,13 +525,23 @@ export class FinopsPageComponent implements OnInit {
   readonly filteredAnnualSavings = computed(() => this.filteredSavings() * 12);
 
   readonly bucketCounts = computed(() => {
-    const c = { rightsizing: 0, modernization: 0, orphaned: 0 };
+    const c = {
+      rightsizing: 0,
+      modernization: 0,
+      orphaned: 0,
+      inventory: 0,
+    };
     for (const card of this.cards()) c[card.bucket] += 1;
     return c;
   });
 
   readonly bucketSavings = computed(() => {
-    const c = { rightsizing: 0, modernization: 0, orphaned: 0 };
+    const c = {
+      rightsizing: 0,
+      modernization: 0,
+      orphaned: 0,
+      inventory: 0,
+    };
     for (const card of this.cards()) {
       c[card.bucket] += card.finding.estimatedMonthlySavingsUsd || 0;
     }
@@ -490,6 +590,10 @@ export class FinopsPageComponent implements OnInit {
           name: en ? 'Idle' : 'Sin uso',
           value: chartUsd(s.orphaned),
         },
+        {
+          name: en ? 'Inventory' : 'Inventario',
+          value: chartUsd(s.inventory),
+        },
       ],
       { valuePrefix: '$', color: '#0d9488' },
     );
@@ -518,6 +622,37 @@ export class FinopsPageComponent implements OnInit {
     });
   });
 
+  readonly komiserServiceDonutOpt = computed(() => {
+    const en = this.locale.isEn();
+    const byService = new Map<string, number>();
+    for (const c of this.komiserCards()) {
+      const usd = c.finding.estimatedMonthlySavingsUsd || 0;
+      if (usd <= 0) continue;
+      byService.set(c.service, (byService.get(c.service) ?? 0) + usd);
+    }
+    const rows = [...byService.entries()]
+      .map(([name, value]) => ({ name, value: chartUsd(value) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+    return namedDonutOption(
+      rows,
+      en ? 'No Komiser spend' : 'Sin gasto Komiser',
+    );
+  });
+
+  readonly komiserTopBarOpt = computed(() =>
+    savingsBarOption(
+      this.komiserCards()
+        .filter((c) => c.finding.estimatedMonthlySavingsUsd > 0)
+        .slice(0, 8)
+        .map((c) => ({
+          name:
+            `${c.service}: ${c.ui.where || c.finding.resourceId}`.slice(0, 36),
+          value: chartUsd(c.finding.estimatedMonthlySavingsUsd),
+        })),
+    ),
+  );
+
   formatMoney(amount: number): string {
     return formatSavingsUsd(amount);
   }
@@ -541,8 +676,8 @@ export class FinopsPageComponent implements OnInit {
         : 'Esta revisión no dejó hallazgos. Probá una nueva desde Resumen.';
     }
     return en
-      ? 'No cost-saving opportunities in this view. Security issues live in Security center.'
-      : 'Sin oportunidades de ahorro en esta vista. Lo de seguridad está en Centro de seguridad.';
+      ? 'No cost-saving opportunities in this view. Try Inventory for Komiser spend, or Security center for risks.'
+      : 'Sin oportunidades de ahorro en esta vista. Probá Inventario para gasto Komiser, o Centro de seguridad.';
   });
 
   serviceIcon(service: string): string {
@@ -551,8 +686,13 @@ export class FinopsPageComponent implements OnInit {
     if (s.includes('s3') || s.includes('storage') || s.includes('ebs')) {
       return 'pi-database';
     }
+    if (s.includes('ecr') || s.includes('ecs') || s.includes('fargate')) {
+      return 'pi-box';
+    }
     if (s.includes('ec2') || s.includes('network')) return 'pi-server';
-    if (s.includes('cost') || s.includes('cloudwatch')) return 'pi-wallet';
+    if (s.includes('cost') || s.includes('cloudwatch') || s.includes('invent')) {
+      return 'pi-wallet';
+    }
     return 'pi-chart-line';
   }
 

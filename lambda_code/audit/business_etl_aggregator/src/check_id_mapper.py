@@ -221,11 +221,12 @@ def map_row_to_classification(row: dict[str, Any]) -> tuple[LlmClassification | 
     # CloudQuery / infracost por categoría de dominio
     domain = str(row.get("domain") or "").lower()
     category = str(row.get("category") or "").lower()
-    if domain == "finops" or engine in {"cloudquery", "infracost"} or category in {
+    if domain == "finops" or engine in {"cloudquery", "infracost", "komiser"} or category in {
         "rightsizing",
         "orphaned",
         "modernization",
         "infracost",
+        "cost_generic_alert",
     }:
         if "ebs" in hay or "unattached" in hay or category == "orphaned":
             return (

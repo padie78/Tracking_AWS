@@ -203,3 +203,14 @@ export const INFRACOST_PARQUET_SCHEMA: ParquetColumnSchema[] = [
   { name: 'hourly_cost_usd', type: 'DOUBLE' },
   { name: 'currency', type: 'STRING' },
 ];
+
+/** Schema Komiser (inventario financiero Fargate → S3 JSON). */
+export const KOMISER_PARQUET_SCHEMA: ParquetColumnSchema[] = [
+  { name: 'resource_id', type: 'STRING' },
+  { name: 'name', type: 'STRING' },
+  { name: 'service', type: 'STRING' },
+  { name: 'region', type: 'STRING' },
+  { name: 'provider', type: 'STRING' },
+  { name: 'monthly_cost_usd', type: 'DOUBLE' },
+  { name: 'link', type: 'STRING' },
+];

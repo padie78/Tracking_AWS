@@ -25,6 +25,7 @@ data "aws_iam_policy_document" "sfn_invoke" {
       var.cloudquery_inventory_arn,
       var.load_prowler_results_arn,
       var.load_trivy_results_arn,
+      var.load_komiser_results_arn,
       var.aggregate_audit_arn,
       var.business_etl_aggregator_arn,
       var.fail_audit_arn,
@@ -95,7 +96,7 @@ resource "aws_sfn_state_machine" "audit" {
   depends_on = [aws_iam_role_policy.sfn_invoke]
 
   definition = jsonencode({
-    Comment = "Track_AWS: resolve → Parallel(CloudQuery ∥ Prowler ∥ Trivy) → aggregate"
+    Comment = "Track_AWS: resolve → Parallel(CloudQuery ∥ Prowler ∥ Trivy ∥ Komiser) → aggregate"
     StartAt = "ResolveAccount"
     States = {
       ResolveAccount = {
@@ -344,6 +345,96 @@ resource "aws_sfn_state_machine" "audit" {
                 End = true
               }
             }
+          },
+          {
+            StartAt = "KomiserFargate"
+            States = {
+              KomiserFargate = {
+                Type           = "Task"
+                Resource       = "arn:aws:states:::ecs:runTask.sync"
+                TimeoutSeconds = 900
+                Parameters = {
+                  LaunchType     = "FARGATE"
+                  Cluster        = var.prowler_cluster_arn
+                  TaskDefinition = var.komiser_task_definition_arn
+                  NetworkConfiguration = {
+                    AwsvpcConfiguration = {
+                      Subnets        = var.prowler_subnet_ids
+                      SecurityGroups = [var.prowler_security_group_id]
+                      AssignPublicIp = "ENABLED"
+                    }
+                  }
+                  Overrides = {
+                    ContainerOverrides = [
+                      {
+                        Name = var.komiser_container_name
+                        Environment = [
+                          { Name = "TENANT_ID", "Value.$" = "$.resolve.payload.tenantId" },
+                          { Name = "AUDIT_ID", "Value.$" = "$.resolve.payload.auditId" },
+                          { Name = "ACCOUNT_ID", "Value.$" = "$.resolve.payload.accountId" },
+                          { Name = "ROLE_ARN", "Value.$" = "$.resolve.payload.roleArn" },
+                          { Name = "VEND_ROLE_ARN", "Value.$" = "$.resolve.payload.roleArn" },
+                          { Name = "EXTERNAL_ID", "Value.$" = "$.resolve.payload.externalId" },
+                          { Name = "REGIONS", "Value.$" = "$.resolve.payload.regionsCsv" },
+                          {
+                            Name  = "OUTPUT_BUCKET"
+                            Value = var.prowler_findings_bucket
+                          },
+                          {
+                            Name      = "OUTPUT_KEY"
+                            "Value.$" = "States.Format('tenants/{}/audits/{}/komiser/findings.json', $.resolve.payload.tenantId, $.resolve.payload.auditId)"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+                ResultPath = "$.ecs"
+                Next       = "LoadKomiserResults"
+                Catch = [{
+                  ErrorEquals = ["States.ALL"]
+                  ResultPath  = "$.komiserError"
+                  Next        = "LoadKomiserResults"
+                }]
+              }
+              LoadKomiserResults = {
+                Type     = "Task"
+                Resource = "arn:aws:states:::lambda:invoke"
+                Parameters = {
+                  FunctionName = var.load_komiser_results_arn
+                  Payload = {
+                    "tenantId.$"      = "$.resolve.payload.tenantId"
+                    "auditId.$"       = "$.resolve.payload.auditId"
+                    "accountId.$"     = "$.resolve.payload.accountId"
+                    "correlationId.$" = "$.resolve.payload.correlationId"
+                  }
+                }
+                Retry = local.lambda_retry
+                Catch = [{
+                  ErrorEquals = ["States.ALL"]
+                  Next        = "KomiserFallback"
+                }]
+                Next = "KomiserSuccess"
+              }
+              KomiserSuccess = {
+                Type = "Pass"
+                Parameters = {
+                  "komiser.$" = "$.Payload"
+                }
+                End = true
+              }
+              KomiserFallback = {
+                Type = "Pass"
+                Result = {
+                  komiser = {
+                    engine  = "komiser-fargate"
+                    ok      = false
+                    warning = "komiser_branch_failed"
+                  }
+                }
+                End = true
+              }
+            }
           }
         ]
         ResultPath = "$.engines"
@@ -371,6 +462,7 @@ resource "aws_sfn_state_machine" "audit" {
             "finops.$"        = "$.engines[0].finops"
             "secops.$"        = "$.engines[1].secops"
             "appsec.$"        = "$.engines[2].appsec"
+            "komiser.$"       = "$.engines[3].komiser"
           }
         }
         ResultPath = "$.aggregate"
@@ -402,6 +494,7 @@ resource "aws_sfn_state_machine" "audit" {
             "finops.$"        = "$.engines[0].finops"
             "secops.$"        = "$.engines[1].secops"
             "appsec.$"        = "$.engines[2].appsec"
+            "komiser.$"       = "$.engines[3].komiser"
           }
         }
         ResultPath = "$.businessEtl"

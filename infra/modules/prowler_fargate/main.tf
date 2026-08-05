@@ -147,6 +147,7 @@ data "aws_iam_policy_document" "task" {
     resources = [
       "${var.artifacts_bucket_arn}/tenants/*/audits/*/prowler/*",
       "${var.artifacts_bucket_arn}/tenants/*/audits/*/trivy/*",
+      "${var.artifacts_bucket_arn}/tenants/*/audits/*/komiser/*",
     ]
   }
 }
@@ -270,6 +271,73 @@ resource "aws_ecs_task_definition" "trivy" {
           "awslogs-group"         = aws_cloudwatch_log_group.trivy.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "trivy"
+        }
+      }
+    }
+  ])
+}
+
+# ─────────── Komiser (inventario financiero; mismo cluster / VPC / roles) ───────────
+
+resource "aws_ecr_repository" "komiser" {
+  name                 = "${var.name_prefix}-komiser"
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = var.tags
+}
+
+resource "aws_ecr_lifecycle_policy" "komiser" {
+  repository = aws_ecr_repository.komiser.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 10 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "komiser" {
+  name              = "/ecs/${var.name_prefix}-komiser"
+  retention_in_days = 30
+  tags              = var.tags
+}
+
+resource "aws_ecs_task_definition" "komiser" {
+  family                   = "${var.name_prefix}-komiser"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+  tags                     = var.tags
+
+  container_definitions = jsonencode([
+    {
+      name      = "komiser"
+      image     = "${aws_ecr_repository.komiser.repository_url}:${var.prowler_image_tag}"
+      essential = true
+      environment = [
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "OUTPUT_BUCKET", value = var.artifacts_bucket_name },
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.komiser.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "komiser"
         }
       }
     }

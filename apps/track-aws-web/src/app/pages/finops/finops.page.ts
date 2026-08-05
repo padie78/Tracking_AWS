@@ -38,6 +38,20 @@ type FinopsCard = {
   service: string;
 };
 
+/** Formato de ahorro: micro-montos no deben verse como $0.00. */
+function formatSavingsUsd(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return '$0';
+  if (amount < 0.01) return '< $0.01';
+  if (amount < 1) return `$${amount.toFixed(2)}`;
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function chartUsd(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (amount < 0.01) return Math.round(amount * 1e4) / 1e4;
+  return Math.round(amount * 100) / 100;
+}
+
 /** Hallazgos de costo. domain/COST_* ganan; solo se bloquea SecOps claro (secrets/IAM/SG/CVE). */
 function isFinopsFinding(f: FindingLike): boolean {
   const check = (f.checkId ?? '').toLowerCase();
@@ -140,7 +154,7 @@ function finopsBucket(
             {{ locale.isEn() ? 'Monthly savings potential' : 'Ahorro potencial mensual' }}
           </div>
           <div class="ta-kpi__value ta-kpi__value--accent">
-            \${{ filteredSavings() | number: '1.2-2' }}
+            {{ formatMoney(filteredSavings()) }}
           </div>
           <div class="ta-kpi__hint">USD / {{ locale.isEn() ? 'month' : 'mes' }}</div>
         </div>
@@ -173,7 +187,7 @@ function finopsBucket(
           </div>
           <div class="ta-kpi__value">{{ bucketCounts().rightsizing }}</div>
           <div class="ta-kpi__hint">
-            \${{ bucketSavings().rightsizing | number: '1.0-0' }}/{{
+            {{ formatMoney(bucketSavings().rightsizing) }}/{{
               locale.isEn() ? 'mo' : 'mes'
             }}
           </div>
@@ -184,7 +198,7 @@ function finopsBucket(
           </div>
           <div class="ta-kpi__value">{{ bucketCounts().modernization }}</div>
           <div class="ta-kpi__hint">
-            \${{ bucketSavings().modernization | number: '1.0-0' }}/{{
+            {{ formatMoney(bucketSavings().modernization) }}/{{
               locale.isEn() ? 'mo' : 'mes'
             }}
           </div>
@@ -195,7 +209,7 @@ function finopsBucket(
           </div>
           <div class="ta-kpi__value">{{ bucketCounts().orphaned }}</div>
           <div class="ta-kpi__hint">
-            \${{ bucketSavings().orphaned | number: '1.0-0' }}/{{
+            {{ formatMoney(bucketSavings().orphaned) }}/{{
               locale.isEn() ? 'mo' : 'mes'
             }}
           </div>
@@ -293,8 +307,17 @@ function finopsBucket(
                   @if (card.finding.estimatedMonthlySavingsUsd > 0) {
                     ·
                     <span class="ta-incident__money">
-                      \${{ card.finding.estimatedMonthlySavingsUsd | number: '1.2-2' }}
+                      {{ formatMoney(card.finding.estimatedMonthlySavingsUsd) }}
                       USD/{{ locale.isEn() ? 'mo' : 'mes' }}
+                    </span>
+                  } @else if ((card.finding.category || '').toUpperCase().startsWith('COST_')) {
+                    ·
+                    <span class="ta-meta">
+                      {{
+                        locale.isEn()
+                          ? 'negligible storage $ (real size)'
+                          : 'costo de storage insignificante (tamaño real)'
+                      }}
                     </span>
                   }
                 </div>
@@ -445,7 +468,7 @@ export class FinopsPageComponent implements OnInit {
         .slice(0, 8)
         .map((c) => ({
           name: c.ui.where.slice(0, 28) || c.finding.resourceId.slice(0, 28),
-          value: Math.round(c.finding.estimatedMonthlySavingsUsd),
+          value: chartUsd(c.finding.estimatedMonthlySavingsUsd),
         })),
     ),
   );
@@ -457,15 +480,15 @@ export class FinopsPageComponent implements OnInit {
       [
         {
           name: en ? 'Rightsizing' : 'Sobredim.',
-          value: Math.round(s.rightsizing),
+          value: chartUsd(s.rightsizing),
         },
         {
           name: en ? 'Modernize' : 'Moderniz.',
-          value: Math.round(s.modernization),
+          value: chartUsd(s.modernization),
         },
         {
           name: en ? 'Idle' : 'Sin uso',
-          value: Math.round(s.orphaned),
+          value: chartUsd(s.orphaned),
         },
       ],
       { valuePrefix: '$', color: '#0d9488' },
@@ -482,7 +505,7 @@ export class FinopsPageComponent implements OnInit {
       running += c.finding.estimatedMonthlySavingsUsd;
       return {
         label: `#${i + 1}`,
-        value: Math.round(running),
+        value: chartUsd(running),
       };
     });
     if (points.length === 0) {
@@ -495,6 +518,9 @@ export class FinopsPageComponent implements OnInit {
     });
   });
 
+  formatMoney(amount: number): string {
+    return formatSavingsUsd(amount);
+  }
   readonly emptyHint = computed(() => {
     const en = this.locale.isEn();
     const a = this.audit.activeAudit();

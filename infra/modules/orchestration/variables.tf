@@ -18,6 +18,10 @@ variable "load_trivy_results_arn" {
   type = string
 }
 
+variable "load_komiser_results_arn" {
+  type = string
+}
+
 variable "aggregate_audit_arn" {
   type = string
 }
@@ -42,6 +46,10 @@ variable "trivy_task_definition_arn" {
   type = string
 }
 
+variable "komiser_task_definition_arn" {
+  type = string
+}
+
 variable "prowler_container_name" {
   type    = string
   default = "prowler"
@@ -50,6 +58,11 @@ variable "prowler_container_name" {
 variable "trivy_container_name" {
   type    = string
   default = "trivy"
+}
+
+variable "komiser_container_name" {
+  type    = string
+  default = "komiser"
 }
 
 variable "prowler_subnet_ids" {

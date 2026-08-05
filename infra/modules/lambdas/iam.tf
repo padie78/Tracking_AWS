@@ -115,6 +115,7 @@ data "aws_iam_policy_document" "lambda_inline" {
       "${var.data_lake_bucket_arn}/cloudquery/*",
       "${var.data_lake_bucket_arn}/prowler/*",
       "${var.data_lake_bucket_arn}/trivy/*",
+      "${var.data_lake_bucket_arn}/komiser/*",
       "${var.data_lake_bucket_arn}/infracost/*",
     ]
   }
@@ -130,6 +131,7 @@ data "aws_iam_policy_document" "lambda_inline" {
     resources = [
       "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/prowler/*",
       "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/trivy/*",
+      "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/komiser/*",
     ]
   }
 }

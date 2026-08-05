@@ -84,6 +84,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
       "cloudquery",
       "prowler",
       "trivy",
+      "komiser",
       "infracost",
     ]) : toset([])
     content {

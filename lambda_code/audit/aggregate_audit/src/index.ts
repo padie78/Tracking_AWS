@@ -57,6 +57,7 @@ type EngineArtifactRef = {
   engine?: string;
   warning?: string;
   ok?: boolean;
+  contentLength?: number;
 };
 
 type Input = {
@@ -75,6 +76,8 @@ type Input = {
   };
   secops: EngineArtifactRef;
   appsec?: EngineArtifactRef;
+  /** Inventario financiero Komiser (S3 ref); soft-fail si falta. */
+  komiser?: EngineArtifactRef;
 };
 
 const s3 = new S3Client({});
@@ -272,6 +275,13 @@ export const handler: Handler<Input> = async (event) => {
     event.appsec,
     `tenants/${event.tenantId}/audits/${event.auditId}/trivy/findings.json`,
   );
+
+  console.info('komiser_artifact', {
+    ok: event.komiser?.ok ?? false,
+    sourceKey: event.komiser?.sourceKey ?? null,
+    contentLength: event.komiser?.contentLength ?? 0,
+    warning: event.komiser?.warning,
+  });
 
   const securityScore = scoreFromFindings(
     [...secopsFindings, ...appsecFindings],

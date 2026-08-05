@@ -138,4 +138,5 @@ def _savings_log_retention(region: str, variables: ExtractedVariables) -> float:
             },
         )
     gb = _log_gb(variables)
-    return round(unit * gb, 4)
+    # 6 decimales: log groups chicos (~MB) no deben truncarse a $0.00
+    return round(unit * gb, 6)

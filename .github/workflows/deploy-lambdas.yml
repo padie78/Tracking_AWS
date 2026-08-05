@@ -57,6 +57,9 @@ jobs:
           - path: audit/load_trivy_results
             artifact: load_trivy_results
             tf_output: load_trivy_results_name
+          - path: audit/load_komiser_results
+            artifact: load_komiser_results
+            tf_output: load_komiser_results_name
           - path: audit/fail_audit
             artifact: fail_audit
             tf_output: fail_audit_name
@@ -127,6 +130,9 @@ jobs:
           - path: audit/load_trivy_results
             artifact: load_trivy_results
             tf_output: load_trivy_results_name
+          - path: audit/load_komiser_results
+            artifact: load_komiser_results
+            tf_output: load_komiser_results_name
           - path: audit/fail_audit
             artifact: fail_audit
             tf_output: fail_audit_name

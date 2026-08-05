@@ -50,6 +50,18 @@ output "trivy_ecr_repository_url" {
   value = aws_ecr_repository.trivy.repository_url
 }
 
+output "komiser_task_definition_arn" {
+  value = aws_ecs_task_definition.komiser.arn
+}
+
+output "komiser_container_name" {
+  value = "komiser"
+}
+
+output "komiser_ecr_repository_url" {
+  value = aws_ecr_repository.komiser.repository_url
+}
+
 output "findings_key_prefix" {
   value = "tenants"
 }

@@ -1,9 +1,9 @@
 # Komiser Fargate — inventario financiero on-demand (RunTask.sync)
-# Binario oficial + AWS CLI + curl para export headless vía API local.
+# Binario oficial (GitHub releases) + AWS CLI + curl para export headless.
 FROM debian:bookworm-slim
 
-ARG KOMISER_VERSION=latest
-ARG TARGETARCH=amd64
+# Pin estable (cli.komiser.io es poco confiable en CI). Override: --build-arg KOMISER_VERSION=v3.1.21
+ARG KOMISER_VERSION=v3.1.22
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,20 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bash \
       python3 \
       awscli \
-      wget \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /opt/trackaws /usr/local/bin
 
-# Binario Linux x86_64 (Fargate default). Pin: KOMISER_VERSION=v3.1.21
+# Repo canónico de releases: mlabouardy/komiser (Linux amd64 → Fargate)
 RUN set -eux; \
-  if [ "${KOMISER_VERSION}" = "latest" ]; then \
-    wget -q "https://cli.komiser.io/latest/komiser_Linux_x86_64" -O /usr/local/bin/komiser; \
-  else \
-    wget -q "https://github.com/tailwarden/komiser/releases/download/${KOMISER_VERSION}/komiser_Linux_x86_64" -O /usr/local/bin/komiser \
-      || wget -q "https://cli.komiser.io/latest/komiser_Linux_x86_64" -O /usr/local/bin/komiser; \
-  fi; \
+  curl -fsSL \
+    "https://github.com/mlabouardy/komiser/releases/download/${KOMISER_VERSION}/komiser_Linux_x86_64" \
+    -o /usr/local/bin/komiser; \
   chmod +x /usr/local/bin/komiser; \
-  komiser version || true
+  komiser version
 
 COPY entrypoint.sh /opt/trackaws/entrypoint.sh
 RUN chmod +x /opt/trackaws/entrypoint.sh

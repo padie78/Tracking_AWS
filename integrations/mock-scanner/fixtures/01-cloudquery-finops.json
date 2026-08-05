@@ -1,0 +1,137 @@
+{
+  "engine": "cloudquery-mock",
+  "inventorySummary": {
+    "totalCount": 18,
+    "ec2Count": 5,
+    "ebsCount": 6,
+    "eipCount": 2,
+    "runningEc2Count": 3,
+    "stoppedEc2Count": 2,
+    "unattachedEbsCount": 2,
+    "idleEipCount": 1
+  },
+  "resources": [
+    {
+      "resourceType": "ec2",
+      "resourceId": "i-0mockrightsize01",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mockrightsize01",
+      "region": "eu-central-1",
+      "state": "running",
+      "detail": "m5.2xlarge · cpu 8%",
+      "estimatedMonthlyCostUsd": 280.5
+    },
+    {
+      "resourceType": "ec2",
+      "resourceId": "i-0mocklegacyt2",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mocklegacyt2",
+      "region": "eu-central-1",
+      "state": "running",
+      "detail": "t2.large · candidate graviton",
+      "estimatedMonthlyCostUsd": 67.2
+    },
+    {
+      "resourceType": "ebs",
+      "resourceId": "vol-0mockorphan100",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:volume/vol-0mockorphan100",
+      "region": "eu-central-1",
+      "state": "available",
+      "detail": "gp3 100GiB unattached",
+      "estimatedMonthlyCostUsd": 8.0
+    },
+    {
+      "resourceType": "eip",
+      "resourceId": "eipalloc-0mockidle",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:elastic-ip/eipalloc-0mockidle",
+      "region": "eu-central-1",
+      "state": "unassociated",
+      "detail": "idle Elastic IP",
+      "estimatedMonthlyCostUsd": 3.65
+    },
+    {
+      "resourceType": "lambda",
+      "resourceId": "track-aws-mock-idle-fn",
+      "resourceArn": "arn:aws:lambda:eu-central-1:473959757331:function:track-aws-mock-idle-fn",
+      "region": "eu-central-1",
+      "state": "Active",
+      "detail": "0 invocations / 30d",
+      "estimatedMonthlyCostUsd": 12.4
+    }
+  ],
+  "findings": [
+    {
+      "findingId": "mock-cq-rightsizing-m5",
+      "domain": "finops",
+      "category": "rightsizing",
+      "severity": "HIGH",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mockrightsize01",
+      "resourceId": "i-0mockrightsize01",
+      "region": "eu-central-1",
+      "title": "EC2 m5.2xlarge sobredimensionada (CPU ~8%)",
+      "rationale": "La instancia corre con utilización sostenida bajo 15%. Un m5.large cubre la carga.",
+      "recommendedAction": "Rightsizing a m5.large o m6i.large tras validar picos.",
+      "estimatedMonthlySavingsUsd": 210.0,
+      "checkId": "ec2_instance_rightsizing_cpu",
+      "createdAtIso": "2026-08-05T12:00:00.000Z"
+    },
+    {
+      "findingId": "mock-cq-modernize-t2",
+      "domain": "finops",
+      "category": "modernization",
+      "severity": "MEDIUM",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mocklegacyt2",
+      "resourceId": "i-0mocklegacyt2",
+      "region": "eu-central-1",
+      "title": "Instancia t2.large candidata a Graviton/t4g",
+      "rationale": "Familia t2 tiene peor precio/rendimiento que t4g/m7g en esta región.",
+      "recommendedAction": "Migrar a t4g.large y re-probar la app.",
+      "estimatedMonthlySavingsUsd": 18.5,
+      "checkId": "ec2_instance_modernization_graviton",
+      "createdAtIso": "2026-08-05T12:00:00.000Z"
+    },
+    {
+      "findingId": "mock-cq-orphan-ebs",
+      "domain": "finops",
+      "category": "orphaned",
+      "severity": "MEDIUM",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:volume/vol-0mockorphan100",
+      "resourceId": "vol-0mockorphan100",
+      "region": "eu-central-1",
+      "title": "EBS gp3 100 GiB sin adjuntar",
+      "rationale": "Volumen available sin instancia asociada; sigue facturando storage.",
+      "recommendedAction": "Snapshot + delete si no hay dependencia, o re-adjuntar.",
+      "estimatedMonthlySavingsUsd": 8.0,
+      "checkId": "ebs_volume_unattached",
+      "createdAtIso": "2026-08-05T12:00:00.000Z"
+    },
+    {
+      "findingId": "mock-cq-idle-eip",
+      "domain": "finops",
+      "category": "orphaned",
+      "severity": "LOW",
+      "resourceArn": "arn:aws:ec2:eu-central-1:473959757331:elastic-ip/eipalloc-0mockidle",
+      "resourceId": "eipalloc-0mockidle",
+      "region": "eu-central-1",
+      "title": "Elastic IP sin asociar",
+      "rationale": "AWS cobra EIPs idle; esta no está asociada a ninguna ENI.",
+      "recommendedAction": "Liberar la EIP o asociarla a un recurso activo.",
+      "estimatedMonthlySavingsUsd": 3.65,
+      "checkId": "ec2_eip_unassociated",
+      "createdAtIso": "2026-08-05T12:00:00.000Z"
+    },
+    {
+      "findingId": "mock-cq-lambda-idle",
+      "domain": "finops",
+      "category": "orphaned",
+      "severity": "MEDIUM",
+      "resourceArn": "arn:aws:lambda:eu-central-1:473959757331:function:track-aws-mock-idle-fn",
+      "resourceId": "track-aws-mock-idle-fn",
+      "region": "eu-central-1",
+      "title": "Lambda sin invocaciones en 30 días",
+      "rationale": "Función provisionada con costo fijo residual y secretos asociados.",
+      "recommendedAction": "Archivar código y eliminar la función si ya no se usa.",
+      "estimatedMonthlySavingsUsd": 12.4,
+      "checkId": "lambda_function_idle",
+      "createdAtIso": "2026-08-05T12:00:00.000Z"
+    }
+  ]
+}

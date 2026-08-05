@@ -117,6 +117,23 @@ type ActionCard = {
           pButton
           type="button"
           class="p-button-outlined"
+          icon="pi pi-box"
+          [label]="
+            audit.starting()
+              ? locale.isEn()
+                ? 'Simulating…'
+                : 'Simulando…'
+              : locale.isEn()
+                ? 'Simulate scanner'
+                : 'Simular scanner'
+          "
+          [disabled]="audit.starting() || !canStart()"
+          (click)="startMock()"
+        ></button>
+        <button
+          pButton
+          type="button"
+          class="p-button-outlined"
           icon="pi pi-refresh"
           [label]="locale.isEn() ? 'Refresh' : 'Actualizar'"
           (click)="refresh()"
@@ -1034,6 +1051,10 @@ export class DashboardPageComponent implements OnInit {
 
   async start(): Promise<void> {
     await this.audit.startAudit();
+  }
+
+  async startMock(): Promise<void> {
+    await this.audit.startMockScan();
   }
 
   async refresh(): Promise<void> {

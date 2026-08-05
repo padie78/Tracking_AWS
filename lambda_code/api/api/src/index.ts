@@ -10,6 +10,7 @@ import {
   listAuditInventory,
   listAwsAccounts,
   startAudit,
+  simulateMockScan,
   upsertAlertChannel,
   deleteAlertChannel,
   verifyAwsAccountLink,
@@ -29,6 +30,15 @@ type CognitoIdentity = {
 type ResolverArgs =
   | {
       fieldName: 'startAudit';
+      args: {
+        input: {
+          accountId: string;
+          regions?: string[] | null;
+        };
+      };
+    }
+  | {
+      fieldName: 'simulateMockScan';
       args: {
         input: {
           accountId: string;
@@ -117,6 +127,24 @@ async function dispatch(
         executionArn: result.executionArn,
         tenantId,
         accountId: op.args.input.accountId,
+      };
+    }
+
+    case 'simulateMockScan': {
+      requireCanRunScans(ctx);
+      const result = await simulateMockScan.execute({
+        tenantId,
+        accountId: op.args.input.accountId,
+        regions: op.args.input.regions ?? undefined,
+      });
+      return {
+        accepted: true,
+        auditId: result.auditId,
+        correlationId: result.correlationId,
+        executionArn: result.executionArn,
+        tenantId,
+        accountId: op.args.input.accountId,
+        artifactKeys: result.artifactKeys,
       };
     }
 

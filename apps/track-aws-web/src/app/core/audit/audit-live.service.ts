@@ -233,53 +233,101 @@ export class AuditLiveService {
     this._error.set(null);
     try {
       const result = await this.scan.startAudit({ accountId });
-      this._activeAuditId.set(result.auditId);
-      this.realtime.ensureConnected(tenantId, { auditId: result.auditId });
-      this.notes.push({
-        kind: 'info',
+      return this.afterAuditStarted({
+        tenantId,
+        accountId,
+        result,
         title: 'Audit iniciado',
         body: `Step Functions · ${result.auditId.slice(0, 8)}…`,
-        href: '/tabs/audits',
-        toast: true,
       });
-      // Optimistic row until first poll
-      const now = new Date().toISOString();
-      this._audits.update((prev) => [
-        {
-          tenantId,
-          auditId: result.auditId,
-          accountId,
-          status: 'queued',
-          correlationId: result.correlationId,
-          createdAtIso: now,
-          completedAtIso: null,
-          findingCount: 0,
-          criticalCount: 0,
-          highCount: 0,
-          estimatedMonthlySavingsUsd: 0,
-          globalScore: 0,
-          pillarScores: {
-            operationalExcellence: 0,
-            security: 0,
-            reliability: 0,
-            performanceEfficiency: 0,
-            costOptimization: 0,
-            sustainability: 0,
-          },
-          executionArn: result.executionArn,
-          errorMessage: null,
-        },
-        ...prev.filter((a) => a.auditId !== result.auditId),
-      ]);
-      this.startPolling();
-      await this.refreshAudits();
-      return result.auditId;
     } catch (err) {
       this._error.set(err instanceof Error ? err.message : String(err));
       return null;
     } finally {
       this._starting.set(false);
     }
+  }
+
+  async startMockScan(): Promise<string | null> {
+    const accountId = this.tenant.activeAccountId();
+    const tenantId = this.auth.tenantId();
+    if (!accountId || !tenantId) {
+      this._error.set('Seleccioná una cuenta AWS activa en el selector.');
+      return null;
+    }
+
+    this._starting.set(true);
+    this._error.set(null);
+    try {
+      const result = await this.scan.simulateMockScan({ accountId });
+      const n = result.artifactKeys?.length ?? 5;
+      return this.afterAuditStarted({
+        tenantId,
+        accountId,
+        result,
+        title: 'Scanner simulado',
+        body: `${n} artefactos mock → aggregate/ETL · ${result.auditId.slice(0, 8)}…`,
+      });
+    } catch (err) {
+      this._error.set(err instanceof Error ? err.message : String(err));
+      return null;
+    } finally {
+      this._starting.set(false);
+    }
+  }
+
+  private async afterAuditStarted(input: {
+    tenantId: string;
+    accountId: string;
+    result: {
+      auditId: string;
+      correlationId: string;
+      executionArn: string;
+    };
+    title: string;
+    body: string;
+  }): Promise<string> {
+    const { tenantId, accountId, result } = input;
+    this._activeAuditId.set(result.auditId);
+    this.realtime.ensureConnected(tenantId, { auditId: result.auditId });
+    this.notes.push({
+      kind: 'info',
+      title: input.title,
+      body: input.body,
+      href: '/tabs/audits',
+      toast: true,
+    });
+    const now = new Date().toISOString();
+    this._audits.update((prev) => [
+      {
+        tenantId,
+        auditId: result.auditId,
+        accountId,
+        status: 'queued',
+        correlationId: result.correlationId,
+        createdAtIso: now,
+        completedAtIso: null,
+        findingCount: 0,
+        criticalCount: 0,
+        highCount: 0,
+        estimatedMonthlySavingsUsd: 0,
+        globalScore: 0,
+        pillarScores: {
+          operationalExcellence: 0,
+          security: 0,
+          reliability: 0,
+          performanceEfficiency: 0,
+          costOptimization: 0,
+          sustainability: 0,
+        },
+        executionArn: result.executionArn,
+        errorMessage: null,
+      },
+      ...prev.filter((a) => a.auditId !== result.auditId),
+    ]);
+    this.startPolling();
+    await this.refreshAudits();
+    return result.auditId;
   }
 
   private mergeLiveStatus(st: AuditStatusChangedView): void {

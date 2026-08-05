@@ -132,6 +132,20 @@ data "aws_iam_policy_document" "lambda_inline" {
       "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/prowler/*",
       "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/trivy/*",
       "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/komiser/*",
+      "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/cloudquery/*",
+      "${var.prowler_findings_bucket_arn}/tenants/*/audits/*/infracost/*",
+    ]
+  }
+
+  statement {
+    sid    = "InvokeAuditPipelineLambdas"
+    effect = "Allow"
+    actions = [
+      "lambda:InvokeFunction",
+    ]
+    resources = [
+      "arn:aws:lambda:*:*:function:${var.name_prefix}-aggregate-audit",
+      "arn:aws:lambda:*:*:function:${var.name_prefix}-business-etl-aggregator",
     ]
   }
 }

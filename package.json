@@ -9,7 +9,8 @@
     "build:web": "nx build track-aws-web",
     "start:web": "nx serve track-aws-web",
     "sync:env": "bash scripts/sync-local-env.sh",
-    "seed:mock": "node scripts/seed-mock-data.mjs"
+    "seed:mock": "node scripts/seed-mock-data.mjs",
+    "simulate:mock-scan": "node scripts/simulate-mock-scan.mjs"
   },
   "workspaces": [
     "lambda_code/api/*",

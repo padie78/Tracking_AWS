@@ -1,4 +1,5 @@
 import type { Handler } from 'aws-lambda';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AuditFinding,
@@ -69,6 +70,8 @@ type Input = {
   roleArn?: string;
   externalId?: string;
   regions?: string[];
+  /** Mock scanner: al terminar, encadena Business ETL en async. */
+  mockScan?: boolean;
   finops: {
     findings: SerializedFinding[];
     inventorySummary?: InventorySummaryView | null;
@@ -501,6 +504,10 @@ export const handler: Handler<Input> = async (event) => {
     });
   }
 
+  if (event.mockScan) {
+    await chainBusinessEtl(event);
+  }
+
   return {
     auditId: completed.auditId,
     status: completed.status,
@@ -519,8 +526,48 @@ export const handler: Handler<Input> = async (event) => {
     komiserResourceCount: komiserResources.length,
     historicalParquet: historicalUris,
     hotRetention,
+    mockScan: Boolean(event.mockScan),
   };
 };
+
+async function chainBusinessEtl(event: Input): Promise<void> {
+  const fn =
+    process.env['BUSINESS_ETL_FUNCTION_NAME'] ??
+    process.env['BUSINESS_ETL_AGGREGATOR_ARN'];
+  if (!fn) {
+    console.warn('mockScan: missing BUSINESS_ETL_FUNCTION_NAME; skip ETL chain');
+    return;
+  }
+  const payload = {
+    TenantId: event.tenantId,
+    tenantId: event.tenantId,
+    AwsAccountId: event.accountId,
+    accountId: event.accountId,
+    auditId: event.auditId,
+    correlationId: event.correlationId,
+    roleArn: event.roleArn,
+    externalId: event.externalId,
+    regions: event.regions,
+    finops: event.finops,
+    secops: event.secops,
+    appsec: event.appsec,
+    komiser: event.komiser,
+  };
+  try {
+    await new LambdaClient({}).send(
+      new InvokeCommand({
+        FunctionName: fn,
+        InvocationType: 'Event',
+        Payload: Buffer.from(JSON.stringify(payload)),
+      }),
+    );
+    console.info('mockScan: business ETL invoked async', { fn });
+  } catch (err) {
+    console.error('mockScan: business ETL invoke failed', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 async function writeHistoricalParquetArtifacts(input: {
   tenantId: string;

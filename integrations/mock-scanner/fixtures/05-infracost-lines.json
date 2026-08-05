@@ -1,0 +1,64 @@
+{
+  "engine": "infracost-mock",
+  "currency": "USD",
+  "infracostLines": [
+    {
+      "project_name": "aws-473959757331",
+      "resource_name": "i-0mockrightsize01",
+      "resource_type": "ec2",
+      "region": "eu-central-1",
+      "monthly_cost_usd": 280.5,
+      "hourly_cost_usd": 0.384,
+      "monthlyCost": 280.5,
+      "currency": "USD",
+      "instanceType": "m5.2xlarge",
+      "title": "EC2 m5.2xlarge mock-app-api"
+    },
+    {
+      "project_name": "aws-473959757331",
+      "resource_name": "i-0mocklegacyt2",
+      "resource_type": "ec2",
+      "region": "eu-central-1",
+      "monthly_cost_usd": 67.2,
+      "hourly_cost_usd": 0.092,
+      "monthlyCost": 67.2,
+      "currency": "USD",
+      "instanceType": "t2.large",
+      "title": "EC2 t2.large mock-legacy-batch"
+    },
+    {
+      "project_name": "aws-473959757331",
+      "resource_name": "mock-db-prod",
+      "resource_type": "rds",
+      "region": "eu-central-1",
+      "monthly_cost_usd": 145.0,
+      "hourly_cost_usd": 0.198,
+      "monthlyCost": 145.0,
+      "currency": "USD",
+      "instanceType": "db.r6g.large",
+      "title": "RDS db.r6g.large mock-db-prod"
+    },
+    {
+      "project_name": "aws-473959757331",
+      "resource_name": "vol-0mockorphan100",
+      "resource_type": "ebs",
+      "region": "eu-central-1",
+      "monthly_cost_usd": 8.0,
+      "hourly_cost_usd": 0.011,
+      "monthlyCost": 8.0,
+      "currency": "USD",
+      "title": "EBS gp3 100GiB unattached"
+    },
+    {
+      "project_name": "aws-473959757331",
+      "resource_name": "mock-alb",
+      "resource_type": "elb",
+      "region": "eu-central-1",
+      "monthly_cost_usd": 18.9,
+      "hourly_cost_usd": 0.026,
+      "monthlyCost": 18.9,
+      "currency": "USD",
+      "title": "ALB mock-alb"
+    }
+  ]
+}

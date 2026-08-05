@@ -14,6 +14,8 @@ type Query {
 
 type Mutation {
   startAudit(input: StartAuditInput!): StartAuditResult! @aws_cognito_user_pools
+  simulateMockScan(input: StartAuditInput!): SimulateMockScanResult!
+    @aws_cognito_user_pools
   linkAwsAccount(input: LinkAwsAccountInput!): LinkAwsAccountResult! @aws_cognito_user_pools
   verifyAwsAccountLink(input: VerifyAwsAccountLinkInput!): VerifyAwsAccountLinkResult!
     @aws_cognito_user_pools
@@ -41,6 +43,16 @@ type StartAuditResult @aws_cognito_user_pools {
   executionArn: String!
   tenantId: ID!
   accountId: String!
+}
+
+type SimulateMockScanResult @aws_cognito_user_pools {
+  accepted: Boolean!
+  auditId: ID!
+  correlationId: ID!
+  executionArn: String!
+  tenantId: ID!
+  accountId: String!
+  artifactKeys: [String!]!
 }
 
 type AuditJob @aws_cognito_user_pools {

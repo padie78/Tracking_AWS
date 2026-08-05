@@ -1,0 +1,80 @@
+{
+  "engine": "komiser-fargate",
+  "exportedAtIso": "2026-08-05T12:00:00.000Z",
+  "source": "mock-scanner",
+  "resourceCount": 8,
+  "resources": [
+    {
+      "resourceId": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mockrightsize01",
+      "name": "mock-app-api",
+      "service": "EC2",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 280.5,
+      "link": "https://eu-central-1.console.aws.amazon.com/ec2/home?region=eu-central-1#InstanceDetails:instanceId=i-0mockrightsize01"
+    },
+    {
+      "resourceId": "arn:aws:ec2:eu-central-1:473959757331:instance/i-0mocklegacyt2",
+      "name": "mock-legacy-batch",
+      "service": "EC2",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 67.2,
+      "link": "https://eu-central-1.console.aws.amazon.com/ec2/home?region=eu-central-1#InstanceDetails:instanceId=i-0mocklegacyt2"
+    },
+    {
+      "resourceId": "arn:aws:rds:eu-central-1:473959757331:db:mock-db-prod",
+      "name": "mock-db-prod",
+      "service": "RDS",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 145.0,
+      "link": "https://eu-central-1.console.aws.amazon.com/rds/home?region=eu-central-1#database:id=mock-db-prod"
+    },
+    {
+      "resourceId": "arn:aws:s3:::track-aws-mock-data-lake",
+      "name": "track-aws-mock-data-lake",
+      "service": "S3",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 22.75,
+      "link": "https://s3.console.aws.amazon.com/s3/buckets/track-aws-mock-data-lake"
+    },
+    {
+      "resourceId": "arn:aws:elasticloadbalancing:eu-central-1:473959757331:loadbalancer/app/mock-alb/abc123",
+      "name": "mock-alb",
+      "service": "ELB",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 18.9,
+      "link": "https://eu-central-1.console.aws.amazon.com/ec2/home?region=eu-central-1#LoadBalancers"
+    },
+    {
+      "resourceId": "arn:aws:ecr:eu-central-1:473959757331:repository/track-aws-mock-payments",
+      "name": "track-aws-mock-payments",
+      "service": "ECR",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 0.45,
+      "link": "https://eu-central-1.console.aws.amazon.com/ecr/repositories/private/473959757331/track-aws-mock-payments"
+    },
+    {
+      "resourceId": "arn:aws:lambda:eu-central-1:473959757331:function:track-aws-mock-idle-fn",
+      "name": "track-aws-mock-idle-fn",
+      "service": "Lambda",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 12.4,
+      "link": "https://eu-central-1.console.aws.amazon.com/lambda/home?region=eu-central-1#/functions/track-aws-mock-idle-fn"
+    },
+    {
+      "resourceId": "OLD_RESOURCE_should_be_filtered",
+      "name": "stale-placeholder",
+      "service": "EC2",
+      "region": "eu-central-1",
+      "provider": "AWS",
+      "cost": 999.0,
+      "link": ""
+    }
+  ]
+}

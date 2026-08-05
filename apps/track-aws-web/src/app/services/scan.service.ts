@@ -248,6 +248,20 @@ const START_AUDIT = /* GraphQL */ `
   }
 `;
 
+const SIMULATE_MOCK_SCAN = /* GraphQL */ `
+  mutation SimulateMockScan($input: StartAuditInput!) {
+    simulateMockScan(input: $input) {
+      accepted
+      auditId
+      correlationId
+      executionArn
+      tenantId
+      accountId
+      artifactKeys
+    }
+  }
+`;
+
 const LINK_AWS_ACCOUNT = /* GraphQL */ `
   mutation LinkAwsAccount($input: LinkAwsAccountInput!) {
     linkAwsAccount(input: $input) {
@@ -489,6 +503,26 @@ export class ScanService {
 
     const audit = result.data?.startAudit;
     if (!audit) throw new Error('startAudit no devolvió resultado.');
+    return audit;
+  }
+
+  async simulateMockScan(input: {
+    accountId: string;
+    regions?: string[];
+  }): Promise<StartAuditResultView & { artifactKeys: string[] }> {
+    const authOptions = await authenticatedAppsyncOptions();
+    const result = (await this.client.graphql({
+      query: SIMULATE_MOCK_SCAN,
+      variables: { input },
+      ...authOptions,
+    })) as {
+      data?: {
+        simulateMockScan?: StartAuditResultView & { artifactKeys: string[] };
+      };
+    };
+
+    const audit = result.data?.simulateMockScan;
+    if (!audit) throw new Error('simulateMockScan no devolvió resultado.');
     return audit;
   }
 

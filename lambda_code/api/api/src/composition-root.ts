@@ -9,6 +9,7 @@ import {
   ListAuditInventoryUseCase,
   ListAwsAccountsUseCase,
   StartAuditUseCase,
+  SimulateMockScanUseCase,
   UpsertAlertChannelUseCase,
   DeleteAlertChannelUseCase,
   VerifyAwsAccountLinkUseCase,
@@ -25,6 +26,7 @@ import {
   DynamoDbAuditJobRepository,
   DynamoDbAwsAccountLinkRepository,
   DynamoDbTopologySnapshotRepository,
+  MockScanPipelineAdapter,
   StepFunctionsAuditOrchestratorAdapter,
   UuidGenerator,
 } from '@track-aws/infrastructure';
@@ -48,6 +50,15 @@ export const startAudit = new StartAuditUseCase({
   accountLinks: accountLinkRepository,
   auditWriter: auditJobRepository,
   orchestrator: new StepFunctionsAuditOrchestratorAdapter(),
+  idGenerator,
+  auditNotifier: new AppSyncAuditEventPublisherAdapter(),
+  logger,
+});
+
+export const simulateMockScan = new SimulateMockScanUseCase({
+  accountLinks: accountLinkRepository,
+  auditWriter: auditJobRepository,
+  pipeline: new MockScanPipelineAdapter(),
   idGenerator,
   auditNotifier: new AppSyncAuditEventPublisherAdapter(),
   logger,
